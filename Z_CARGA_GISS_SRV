@@ -1,0 +1,150 @@
+*&---------------------------------------------------------------------*
+*& Report  Z_CARGA_GISS_SRV
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+report z_carga_giss_srv no standard page heading.
+
+tables zgiss_codserv.
+
+**************************VARIÁVEIS PARA O POPUP DE SEEÇÃO DE ARQUIVOS
+data it_files type filetable.
+data wa_files type file_table.
+data v_rc     type i.
+
+
+**************************VARIÁVEIS PARA O GUI UPLOAD
+data lv_file  type string.
+
+
+**************************TABELA E WA PARA O GUI UPLOAD
+types:begin of ty_arquivo,
+  linha type c length 2000,
+end of ty_arquivo.
+
+data it_outdata type standard table of ty_arquivo with header line.
+data wa_outdata type ty_arquivo.
+
+
+*********************** Definição de parametro de seleção
+parameters p_file(1024) type c.
+
+
+********************* Evento para ativaro matchcode
+at selection-screen on value-request for p_file.
+
+
+********************* metodo para exibir o popup de seleção de arquivos
+  call method cl_gui_frontend_services=>file_open_dialog
+    changing
+      file_table              = it_files
+      rc                      = v_rc
+    exceptions
+      file_open_dialog_failed = 1
+      cntl_error              = 2
+      error_no_gui            = 3
+      not_supported_by_gui    = 4
+      others                  = 5.
+
+
+  if sy-subrc ne 0.
+    message id sy-msgid type sy-msgty number sy-msgno
+    with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  else.
+************************** identifica o arquivo selecionado e joga para o parametro de seleção
+    read table it_files into wa_files index 1.
+    p_file = wa_files-filename.
+  endif.
+
+start-of-selection.
+
+  "Função para fazer upload e jogar para tabela Interna. Neste
+  "caso o tipo ASC é para arquivos TXT e excel.
+  "o tipo BIN é para word, pdf.
+
+  lv_file = p_file.
+
+  call function 'GUI_UPLOAD'
+    exporting
+      filename                = lv_file
+      filetype                = 'ASC'
+      has_field_separator     = ' '
+      header_length           = 0
+      read_by_line            = 'X'
+      dat_mode                = ' '
+      codepage                = ' '
+      ignore_cerr             = abap_true
+      replacement             = '#'
+      check_bom               = ' '
+      no_auth_check           = ' '
+                "IMPORTING
+                "  FILELENGTH                    =
+                "  HEADER                        =
+    tables
+      data_tab                = it_outdata
+    exceptions
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      others                  = 17.
+
+  if sy-subrc ne 0.
+    message id sy-msgid type sy-msgty number sy-msgno
+        with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  endif.
+
+************************************  READ TABLE FAZ A LEITURA SOMENTE DE 1 LINHA, DE 1 ÚNICO REGISTRO
+  "READ TABLE it_outdata INTO WA_OUTDATA.
+  "WRITE WA_OUTDATA.
+
+************************************* LOOP AT FAZ A LEITURA DE TODAS AS LINHAS, TODOS OS REGISTROS
+  data:
+      it_giss type standard table of zgiss_codserv,
+      wa_giss type zgiss_codserv.
+
+  loop at it_outdata into wa_outdata.
+
+    data v_codservico_sp  type string.
+    data v_codservico_nac type string.
+    data v_fl_construtora type string.
+
+    split wa_outdata at ';' into
+      v_codservico_sp
+      v_codservico_nac
+      v_fl_construtora.
+
+    wa_giss-codsrv_sp = v_codservico_sp.
+    wa_giss-codsrv_nac = v_codservico_nac.
+    wa_giss-flconstr = v_fl_construtora.
+    wa_giss-dtinc = sy-datum.
+
+    append wa_giss to it_giss.
+
+  endloop.
+
+  loop at it_giss into wa_giss.
+    write: / wa_giss-codsrv_sp, wa_giss-codsrv_nac, wa_giss-flconstr.
+  endloop.
+
+  insert zgiss_codserv from table it_giss.
+
+  if sy-subrc eq 0.
+    "WRITE: / v_codservico_sp, v_codservico_nac, v_fl_construtora.
+    write: / 'Sucesso'.
+  endif.
