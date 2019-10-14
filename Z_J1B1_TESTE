@@ -19,6 +19,9 @@ TYPES:
         nfenum        like j_1bnfdoc-nfenum,    "Nr NF-e
         docdat        like j_1bnfdoc-docdat,
         observat      like j_1bnfdoc-observat,
+        nftype        like j_1bnfdoc-nftype,
+        parid         like j_1bnfdoc-parid,
+        parvw         like j_1bnfdoc-parvw,
         INCO1         like j_1bnfdoc-INCO1,
         INCO2         like j_1bnfdoc-INCO2,
         ANZPK         like j_1bnfdoc-ANZPK,
@@ -87,30 +90,32 @@ DATA:
       wx_curTax         type n value 0,
       wx_observacao     type j_1bnfdoc-observat,
       "wx_curdate(10)    type c,
-      wx_refdocdate(10)    type c,
+      wx_refdocdate(10) type c,
       wx_newdate(10)    type c,
-      wx_numnfe(9)      TYPE c VALUE '1',
+      wx_numnfe(9)      TYPE c," VALUE '1',
       wx_ctanalit(10)   type c,
       wx_CFOP(7)        type c,
-      wx_dirICMS(4)     type c,
-      wx_dirIPI(4)      type c,
-      wx_dirCOFINS(4)   type c,
-      wx_dirPIS(4)      type c,
+      "wx_dirICMS(4)     type c,
+      "wx_dirIPI(4)      type c,
+      "wx_dirCOFINS(4)   type c,
+      "wx_dirPIS(4)      type c,
       wx_docref         type j_1bnfdoc-docnum,
       wx_itmnum         type J_1BDYLIN-itmnum,
       wx_QtTaxItem      type i,
       wx_QtMsgs         type i,
       wx_netpr(16)      type c,
-      wx_menge(16)      type c.
+      wx_menge(16)      type c,
+      wx_bundle(1)      type c value 'N'.   "Pacote. Sobrescreve Taxas, CFOP, etc.
 
+DATA: wx_bun_TAXLW1(3) type c, wx_bun_TAXLW2(3) type c, wx_bun_TAXLW4(3) type c, wx_bun_TAXLW5(3) type c.
 
 selection-screen begin of block b1 with frame title text-t01.
 parameters:      P_DOCNUM       TYPE j_1bnfdoc-docnum OBLIGATORY.
 selection-screen end of block b1.
 
 selection-screen begin of block b2 with frame title text-t02.
-parameters:      P_PARVW        TYPE J_1BDYDOC-PARVW OBLIGATORY,
-                 P_PARID        TYPE J_1BDYDOC-PARID OBLIGATORY,
+parameters:      P_PARVW        TYPE J_1BDYDOC-PARVW,
+                 P_PARID        TYPE J_1BDYDOC-PARID,
                  P_PARID1       TYPE J_1BDYDOC-PARID.
 selection-screen end of block b2.
 
@@ -132,7 +137,33 @@ selection-screen begin of block b4 with frame title text-t04.
               "p_fmth6         as checkbox,  "Indica que é pra exportar registros da Construção Civil.
 selection-screen end of block b4.
 
+*&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+* P_CFEIRA - NF de Entrada de Retorno de Feira/Exposição
+* Ctg.NF - I0
+* 50 (Suspenso) - Direito ICMS
+* 49 (Outras) - Direito IPI
+* 1914/2914 - CFOP
+* OBSERVAÇÃO. REF NF 000XXX DE XX.XX.XXXX
+*&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
+
+INITIALIZATION.
+
+p_docdat = sy-datum.
+wx_bundle = 'N'.
+
 START-OF-SELECTION.
+
+IF P_CFEIRA EQ 'X'.
+*  Obrigar a informar o CFOP.
+  wx_bun_taxlw1 = '50'. "ICMS
+  wx_bun_taxlw2 = '49'. "IPI
+  wx_bun_taxlw4 = 'C08'.  "COFINS
+  wx_bun_taxlw5 = 'P08'.  "PIS
+  p_nvcfop = '1914/AA'.    "Se ocorrer erro no CFOP a J1B1N vai chiar.
+  p_savref = 'X'.
+  wx_bundle = 'S'.
+ENDIF.
 
 "-- Primeiro Uso desta Aplicação:
 "   -- Dar entrada de Notas Fiscais de Remessa de Exporição/Feira (5914/6914) como (1914)
@@ -143,6 +174,9 @@ SELECT branch
       nfenum     "Nr NFe
       docdat    "Data do Documento
       observat
+      nftype
+      parid
+      parvw
       INCO1
       INCO2
       ANZPK
@@ -195,14 +229,47 @@ write wa_header-docnum to wx_docref.
 *      HEADER DA NF
 * ************************
 
+data: wx_nftype(2) type c, wx_parid(10) type c, wx_parvw(2) type c.
+
+IF P_NFTYPE IS INITIAL.
+  wx_nftype = wa_header-nftype.
+ELSE.
+  wx_nftype = P_NFTYPE.
+ENDIF.
+
+IF P_PARID IS INITIAL.
+  wx_parid = wa_header-parid.
+
+ELSE.
+  wx_parid = P_PARID.
+
+  "Se informou parceiro tem que informar a função.
+  IF P_PARVW IS INITIAL.
+    message 'Se informar o Parceiro tem que informar a Função do Parceiro.' TYPE 'I'.
+    stop.
+  ENDIF.
+ENDIF.
+
+IF P_PARVW IS INITIAL.
+  wx_parvw = wa_header-parvw.
+ELSE.
+  wx_parvw = P_PARVW.
+
+  "Se informou função parceiro tem que informar parceiro.
+  IF P_PARID IS INITIAL.
+    message 'Se informar a Função do Parceiro, tem que informar o ID do Parceiro.' TYPE 'I'.
+    stop.
+  ENDIF.
+ENDIF.
+
 * TELA INICIAL
 PERFORM f_load_bdcdata USING:
             'X' 'SAPMJ1B1'   '0900',
-            ' ' 'J_1BDYDOC-NFTYPE' P_NFTYPE,    "i0, i1, i8, etc...
+            ' ' 'J_1BDYDOC-NFTYPE' wx_nftype,    "i0, i1, i8, etc...
             ' ' 'J_1BDYDOC-BUKRS'  wa_header-bukrs,
             ' ' 'J_1BDYDOC-BRANCH' wa_header-branch,
-            ' ' 'J_1BDYDOC-PARVW'  P_PARVW,
-            ' ' 'J_1BDYDOC-PARID'  P_PARID,
+            ' ' 'J_1BDYDOC-PARVW'  wx_parvw,
+            ' ' 'J_1BDYDOC-PARID'  wx_parid,
             ' ' 'J_1BDYLIN-INCLTX' 'X'.
 
 IF P_SAVREF EQ 'X'.
@@ -260,14 +327,6 @@ SELECT ITMNUM
    FROM j_1bnflin
   WHERE docnum EQ p_docnum.
 
-IF p_nvcfop IS INITIAL.
-  "Se não informado, copia.
-  wx_cfop = wa_item-cfop.
-ELSE.
-  "Se informado, pega o novo.
-  wx_cfop = p_nvcfop.
-ENDIF.
-
 *IF p_nvicms IS INITIAL.
 *  wx_diricms = wa_item-taxlw1.
 *ELSE.
@@ -309,6 +368,14 @@ LOOP AT ti_itens into wa_item.
 
   data wx_newcfop(7) type c.
 
+  IF p_nvcfop IS INITIAL.
+    "Se não informado, copia.
+    wx_cfop = wa_item-cfop.
+  ELSE.
+    "Se informado, pega o novo.
+    wx_cfop = p_nvcfop.
+  ENDIF.
+
   CONCATENATE wx_cfop(4) '/' wx_cfop+4 INTO wx_newcfop.
 
   data wx_meins(3) type c.
@@ -317,28 +384,56 @@ LOOP AT ti_itens into wa_item.
   write wa_item-NETPR to wx_netpr NO-ZERO.
   write wa_item-MENGE to wx_menge NO-ZERO.
 
-  PERFORM f_load_bdcdata USING:
-              'X' 'SAPLJ1BB2'   '3000',
-              ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
-              ' ' 'J_1BDYLIN-MATNR' wa_item-MATNR,
-              ' ' 'J_1BDYLIN-WERKS' wa_item-WERKS,
-              ' ' 'J_1BDYLIN-MAKTX' wa_item-MAKTX,
-              ' ' 'J_1BDYLIN-MATKL' wa_item-MATKL,
-              ' ' 'J_1BDYLIN-MENGE' wx_menge,
-              ' ' 'J_1BDYLIN-MEINS' wx_meins,
-              ' ' 'J_1BDYLIN-NETPR' wx_netpr,
-              ' ' 'J_1BDYLIN-CFOP' wx_newcfop,
-              ' ' 'J_1BDYLIN-TAXLW1' wx_diricms,    "Direitos ICMS
-              ' ' 'J_1BDYLIN-TAXLW2' wx_diripi,    "Direitos IPI
-              ' ' 'J_1BDYLIN-MATORG' wa_item-MATORG,
-              ' ' 'J_1BDYLIN-MATUSE' wa_item-MATUSE,
-              ' ' 'J_1BDYLIN-NBM' wa_item-NBM,
-              ' ' 'J_1BDYLIN-TAXLW4' wx_dircofins,   "Direitos COFINS
-              ' ' 'J_1BDYLIN-TAXLW5' wx_dirpis,   "Direitos PIS
-              ' ' 'J_1BDYLIN-DOCREF' wx_docref,   "Nr Doc original
-              ' ' 'J_1BDYLIN-ITMREF' wx_itmnum,     "Item Doc Original
-              ' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
-              ' ' 'BDC_OKCODE'  '=TAX'.
+  IF wx_bundle EQ 'S'.
+
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
+                ' ' 'J_1BDYLIN-MATNR' wa_item-MATNR,
+                ' ' 'J_1BDYLIN-WERKS' wa_item-WERKS,
+                ' ' 'J_1BDYLIN-MAKTX' wa_item-MAKTX,
+                ' ' 'J_1BDYLIN-MATKL' wa_item-MATKL,
+                ' ' 'J_1BDYLIN-MENGE' wx_menge,
+                ' ' 'J_1BDYLIN-MEINS' wx_meins,
+                ' ' 'J_1BDYLIN-NETPR' wx_netpr,
+                ' ' 'J_1BDYLIN-CFOP' p_nvcfop,
+                ' ' 'J_1BDYLIN-TAXLW1' wx_bun_TAXLW1,    "Direitos ICMS
+                ' ' 'J_1BDYLIN-TAXLW2' wx_bun_TAXLW2,    "Direitos IPI
+                ' ' 'J_1BDYLIN-MATORG' wa_item-MATORG,
+                ' ' 'J_1BDYLIN-MATUSE' wa_item-MATUSE,
+                ' ' 'J_1BDYLIN-NBM' wa_item-NBM,
+                ' ' 'J_1BDYLIN-TAXLW4' wx_bun_TAXLW4,   "Direitos COFINS
+                ' ' 'J_1BDYLIN-TAXLW5' wx_bun_TAXLW5,   "Direitos PIS
+                ' ' 'J_1BDYLIN-DOCREF' wx_docref,   "Nr Doc original
+                ' ' 'J_1BDYLIN-ITMREF' wx_itmnum,     "Item Doc Original
+                ' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
+                ' ' 'BDC_OKCODE'  '=TAX'.
+
+  ELSE.
+
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
+                ' ' 'J_1BDYLIN-MATNR' wa_item-MATNR,
+                ' ' 'J_1BDYLIN-WERKS' wa_item-WERKS,
+                ' ' 'J_1BDYLIN-MAKTX' wa_item-MAKTX,
+                ' ' 'J_1BDYLIN-MATKL' wa_item-MATKL,
+                ' ' 'J_1BDYLIN-MENGE' wx_menge,
+                ' ' 'J_1BDYLIN-MEINS' wx_meins,
+                ' ' 'J_1BDYLIN-NETPR' wx_netpr,
+                ' ' 'J_1BDYLIN-CFOP' wx_newcfop,
+                ' ' 'J_1BDYLIN-TAXLW1' wa_item-TAXLW1,    "Direitos ICMS
+                ' ' 'J_1BDYLIN-TAXLW2' wa_item-TAXLW2,    "Direitos IPI
+                ' ' 'J_1BDYLIN-MATORG' wa_item-MATORG,
+                ' ' 'J_1BDYLIN-MATUSE' wa_item-MATUSE,
+                ' ' 'J_1BDYLIN-NBM' wa_item-NBM,
+                ' ' 'J_1BDYLIN-TAXLW4' wa_item-TAXLW4,   "Direitos COFINS
+                ' ' 'J_1BDYLIN-TAXLW5' wa_item-TAXLW5,   "Direitos PIS
+                ' ' 'J_1BDYLIN-DOCREF' wx_docref,   "Nr Doc original
+                ' ' 'J_1BDYLIN-ITMREF' wx_itmnum,     "Item Doc Original
+                ' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
+                ' ' 'BDC_OKCODE'  '=TAX'.
+  ENDIF.
 
   "Conta a qtde de impostos do item atual.
   select count( * )
@@ -611,25 +706,28 @@ wa_params-racommit = 'X'.
 
 CALL TRANSACTION 'J1B1N'
            USING ti_bdc
-    OPTIONS FROM wa_params
+            MODE 'E'   "Errors only
+    "OPTIONS FROM wa_params
    MESSAGES INTO ti_message. "Retorno do sucesso ou fracasso do batch input.
 
-DATA VL_MSG TYPE STRING. "STRING É IGUAL CHAR, VAI AUTOMÁTICO DE ACORDO COM O TEXTO
+"Message 'Cópia da NF concluída. CONFIRME OS DADOS ANTES DE SALVAR!!!' type 'S' DISPLAY LIKE 'E'.
 
-LOOP AT ti_message INTO wa_message.
+"DATA VL_MSG TYPE STRING. "STRING É IGUAL CHAR, VAI AUTOMÁTICO DE ACORDO COM O TEXTO
 
-CALL FUNCTION 'MESSAGE_TEXT_BUILD'
-  EXPORTING
-    msgid                     = WA_MESSAGE-MSGID
-    msgnr                     = WA_MESSAGE-MSGNR
-    MSGV1                     = WA_MESSAGE-MSGV1
-    MSGV2                     = WA_MESSAGE-MSGV2
- IMPORTING
-   MESSAGE_TEXT_OUTPUT        = VL_MSG.
-
-WRITE / VL_MSG.
-
-ENDLOOP.
+*LOOP AT ti_message INTO wa_message.
+*
+*CALL FUNCTION 'MESSAGE_TEXT_BUILD'
+*  EXPORTING
+*    msgid                     = WA_MESSAGE-MSGID
+*    msgnr                     = WA_MESSAGE-MSGNR
+*    MSGV1                     = WA_MESSAGE-MSGV1
+*    MSGV2                     = WA_MESSAGE-MSGV2
+* IMPORTING
+*   MESSAGE_TEXT_OUTPUT        = VL_MSG.
+*
+*WRITE / VL_MSG.
+*
+*ENDLOOP.
 
 *&---------------------------------------------------------------------*
 *&      Form  F_LOAD_BDCDATA
