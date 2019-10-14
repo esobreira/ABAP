@@ -1,6 +1,7 @@
 *&---------------------------------------------------------------------*
 *& Report  Z_J1B1_TESTE
-*&
+*& Eberton Sobreira - 14/10/2019
+*& Criar nota fiscal por referência
 *&---------------------------------------------------------------------*
 *&
 *&
@@ -18,6 +19,13 @@ TYPES:
         nfenum        like j_1bnfdoc-nfenum,    "Nr NF-e
         docdat        like j_1bnfdoc-docdat,
         observat      like j_1bnfdoc-observat,
+        INCO1         like j_1bnfdoc-INCO1,
+        INCO2         like j_1bnfdoc-INCO2,
+        ANZPK         like j_1bnfdoc-ANZPK,
+        SHPUNT        like j_1bnfdoc-SHPUNT,
+        NTGEW         like j_1bnfdoc-NTGEW,
+        BRGEW         like j_1bnfdoc-BRGEW,
+        GEWEI         like j_1bnfdoc-GEWEI,
       end of ty_header,
       begin of ty_itens,
         ITMNUM  LIKE  J_1BDYLIN-ITMNUM,
@@ -40,35 +48,60 @@ TYPES:
         DOCREF  LIKE  J_1BDYLIN-DOCREF,
         ITMREF  LIKE  J_1BDYLIN-ITMREF,
         COD_CTA LIKE  J_1BDYLIN-COD_CTA,
-     END of ty_itens.
+     END of ty_itens,
+     begin of ty_tax,
+       ITMNUM   LIKE  J_1BNFSTX-ITMNUM,
+       TAXTYP   LIKE  J_1BNFSTX-TAXTYP,
+       BASE     LIKE  J_1BNFSTX-BASE,
+       RATE     LIKE  J_1BNFSTX-RATE,
+       TAXVAL   LIKE  J_1BNFSTX-TAXVAL,
+       EXCBAS   LIKE  J_1BNFSTX-EXCBAS,
+       OTHBAS   LIKE  J_1BNFSTX-OTHBAS,
+     end of ty_tax,
+     begin of ty_msg,
+       SEQNUM   LIKE  J_1BNFFTX-SEQNUM,
+       MESSAGE  LIKE  J_1BNFFTX-MESSAGE,
+     end of ty_msg.
 
 *Tabela Interna
 DATA: ti_bdc      TYPE TABLE OF bdcdata,
       ti_message  TYPE TABLE OF bdcmsgcoll,
-      ti_itens    TYPE TABLE OF ty_itens.
+      ti_itens    TYPE TABLE OF ty_itens,
+      ti_tax      TYPE TABLE OF ty_tax,
+      ti_msg      TYPE TABLE OF ty_msg.
 
 *Work Area
 DATA: wa_bdc      TYPE bdcdata,
       wa_params   TYPE ctu_params,
       WA_MESSAGE  TYPE bdcmsgcoll,
       WA_HEADER   TYPE ty_header,
-      WA_ITENS    TYPE ty_itens.
+      wa_item     TYPE ty_itens,
+      WA_TAX      TYPE ty_tax,
+      wa_msg      TYPE ty_msg.
 
 * Variáveis
 DATA:
+      wx_idxTax         type n value 0,
+      wx_countItens     type i value 0,
+      wx_curItem        type n value 0,
+      wx_curTax         type n value 0,
       wx_observacao     type j_1bnfdoc-observat,
-      wx_curdate(10)    type c,
-      wx_docdate(10)    type c,
-      wx_numnfe(10)     type c,
+      "wx_curdate(10)    type c,
+      wx_refdocdate(10)    type c,
+      wx_newdate(10)    type c,
+      wx_numnfe(9)      TYPE c VALUE '1',
       wx_ctanalit(10)   type c,
-      wx_CFOP(6)        type c,
+      wx_CFOP(7)        type c,
       wx_dirICMS(4)     type c,
       wx_dirIPI(4)      type c,
       wx_dirCOFINS(4)   type c,
       wx_dirPIS(4)      type c,
       wx_docref         type j_1bnfdoc-docnum,
-      wx_itmnum         type J_1BDYLIN-itmnum.
-
+      wx_itmnum         type J_1BDYLIN-itmnum,
+      wx_QtTaxItem      type i,
+      wx_QtMsgs         type i,
+      wx_netpr(16)      type c,
+      wx_menge(16)      type c.
 
 
 selection-screen begin of block b1 with frame title text-t01.
@@ -77,11 +110,13 @@ selection-screen end of block b1.
 
 selection-screen begin of block b2 with frame title text-t02.
 parameters:      P_PARVW        TYPE J_1BDYDOC-PARVW OBLIGATORY,
-                 P_PARID        TYPE J_1BDYDOC-PARID OBLIGATORY.
+                 P_PARID        TYPE J_1BDYDOC-PARID OBLIGATORY,
+                 P_PARID1       TYPE J_1BDYDOC-PARID.
 selection-screen end of block b2.
 
 selection-screen begin of block b3 with frame title text-t03.
-  parameters: P_NFTYPE    TYPE J_1BDYDOC-NFTYPE,  "Categoria NF
+  parameters: P_NFTYPE    TYPE j_1bnfdoc-NFTYPE,  "Categoria NF
+              P_DOCDAT    TYPE j_1bnfdoc-docdat OBLIGATORY,  "Data do Documento
               P_NVCFOP    TYPE J_1BDYLIN-CFOP,    "Novo CFOP
               "P_NVICMS    TYPE J_1BDYLIN-TAXLW1,  "Novo Direito Fiscal ICMS
               "P_NVIPI     TYPE J_1BDYLIN-TAXLW2,  "Novo Direito Fiscal IPI
@@ -108,12 +143,19 @@ SELECT branch
       nfenum     "Nr NFe
       docdat    "Data do Documento
       observat
+      INCO1
+      INCO2
+      ANZPK
+      SHPUNT
+      NTGEW
+      BRGEW
+      GEWEI
   into corresponding fields of wa_header
   from j_1bnfdoc
  where bukrs eq 'BR30' and
-       docnum EQ p_docnum and   "Nr Docto
-       doctyp eq 1 and          "Nota fiscal
-       direct eq 2.             "Saída
+       docnum EQ p_docnum.       "Nr Docto
+       "doctyp eq 1.             "Nota fiscal
+       "direct eq 2.             "Saída
 ENDSELECT.
 
 if sy-subrc ne 0.
@@ -126,15 +168,25 @@ endif.
 *ENDIF.
 
 * Data de Hoje
-write SY-DATUM to wx_curdate dd/mm/yyyy.
+"write SY-DATUM to wx_curdate dd/mm/yyyy.
 *replace all occurrences of '.' in wx_curdate with '/'.
 
+* Data do Novo Documento
+write p_docdat to wx_newdate dd/mm/yyyy.
+replace all occurrences of '/' in wx_newdate with '.'.
+
 * Data do Documento
-write wa_header-docdat to wx_docdate dd/mm/yyyy.
-*replace all occurrences of '.' in wx_docdate with '/'.
+write wa_header-docdat to wx_refdocdate dd/mm/yyyy.
+*replace all occurrences of '.' in wx_refdocdate with '/'.
 
 * NumNFe
-write wa_header-nfenum to wx_numnfe.
+"write wa_header-nfenum to wx_numnfe.
+
+"wx_numnfe = '256856'.
+
+data nfeformat(9) type n.
+
+unpack wx_numnfe to nfeformat.
 
 * Docto de Referência.
 write wa_header-docnum to wx_docref.
@@ -155,24 +207,33 @@ PERFORM f_load_bdcdata USING:
 
 IF P_SAVREF EQ 'X'.
   "REF NF 000123456 DE 01/01/2019'
-  CONCATENATE 'REF NF ' wx_numnfe ' DE ' wx_docdate INTO wx_observacao.
+  wx_observacao = 'REF NF % DE & '.
+  REPLACE '%' IN wx_observacao WITH nfeformat.
+  REPLACE '&' IN wx_observacao WITH wx_refdocdate.
 
   PERFORM f_load_bdcdata USING:
               'X' 'SAPLJ1BB2'   '2000',
-              ' ' 'J_1BDYDOC-DOCDAT' wx_docdate,
+              ' ' 'J_1BDYDOC-DOCDAT' wx_newdate,
               ' ' 'J_1BDYDOC-OBSERVAT' wx_observacao,
               ' ' 'J_1BDYDOC-DOCREF'  wa_header-docnum,
               ' ' 'BDC_OKCODE'  '=ADIT'.
 ELSE.
   PERFORM f_load_bdcdata USING:
               'X' 'SAPLJ1BB2'   '2000',
-              ' ' 'J_1BDYDOC-DOCDAT' wx_docdate,
+              ' ' 'J_1BDYDOC-DOCDAT' wx_newdate,
+              ' ' 'J_1BDYDOC-OBSERVAT' p_observ,
               ' ' 'BDC_OKCODE'  '=ADIT'.
 ENDIF.
 
 * ************************
 *      ITENS DA NF
 * ************************
+
+* Qtde Itens NF
+SELECT COUNT( * )
+   INTO wx_countItens
+   FROM j_1bnflin
+  WHERE docnum EQ p_docnum.
 
 * Obter Itens da NF
 SELECT ITMNUM
@@ -200,64 +261,78 @@ SELECT ITMNUM
   WHERE docnum EQ p_docnum.
 
 IF p_nvcfop IS INITIAL.
-  wx_cfop = wa_itens-cfop.
+  "Se não informado, copia.
+  wx_cfop = wa_item-cfop.
 ELSE.
+  "Se informado, pega o novo.
   wx_cfop = p_nvcfop.
 ENDIF.
 
 *IF p_nvicms IS INITIAL.
-*  wx_diricms = wa_itens-taxlw1.
+*  wx_diricms = wa_item-taxlw1.
 *ELSE.
 *  wx_diricms = p_nvicms.
 *ENDIF.
 *
 *IF p_nvipi IS INITIAL.
-*  wx_diripi = wa_itens-taxlw2.
+*  wx_diripi = wa_item-taxlw2.
 *ELSE.
 *  wx_diripi = p_nvipi.
 *ENDIF.
 *
 *IF p_nvcofi IS INITIAL.
-*  wx_dircofins = wa_itens-taxlw4.
+*  wx_dircofins = wa_item-taxlw4.
 *ELSE.
 *  wx_dircofins = p_nvcofi.
 *ENDIF.
 *
 *IF p_nvpis IS INITIAL.
-*  wx_dirpis = wa_itens-taxlw5.
+*  wx_dirpis = wa_item-taxlw5.
 *ELSE.
 *  wx_dirpis = p_nvpis.
 *ENDIF.
 
 IF P_CTANL IS INITIAL.
-  wx_ctanalit = wa_itens-COD_CTA.
+  wx_ctanalit = wa_item-COD_CTA.
 ELSE.
   wx_ctanalit = P_CTANL.
 ENDIF.
 
-LOOP AT ti_itens into wa_itens.
+LOOP AT ti_itens into wa_item.
+
+  wx_curItem = wx_curItem + 1.
 
   wx_itmnum = 0.
   IF P_SAVREF EQ 'X'.
-    wx_itmnum = wa_itens-itmnum.
+    wx_itmnum = wa_item-itmnum.
   ENDIF.
+
+  data wx_newcfop(7) type c.
+
+  CONCATENATE wx_cfop(4) '/' wx_cfop+4 INTO wx_newcfop.
+
+  data wx_meins(3) type c.
+
+  write wa_item-MEINS to wx_meins.
+  write wa_item-NETPR to wx_netpr NO-ZERO.
+  write wa_item-MENGE to wx_menge NO-ZERO.
 
   PERFORM f_load_bdcdata USING:
               'X' 'SAPLJ1BB2'   '3000',
-              ' ' 'J_1BDYLIN-ITMTYP' wa_itens-itmtyp,
-              ' ' 'J_1BDYLIN-MATNR' wa_itens-MATNR,
-              ' ' 'J_1BDYLIN-WERKS' wa_itens-WERKS,
-              ' ' 'J_1BDYLIN-MAKTX' wa_itens-MAKTX,
-              ' ' 'J_1BDYLIN-MATKL' wa_itens-MATKL,
-              ' ' 'J_1BDYLIN-MENGE' wa_itens-MENGE,
-              ' ' 'J_1BDYLIN-MEINS' wa_itens-MEINS,
-              ' ' 'J_1BDYLIN-NETPR' wa_itens-NETPR,
-              ' ' 'J_1BDYLIN-CFOP' wx_cfop,
+              ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
+              ' ' 'J_1BDYLIN-MATNR' wa_item-MATNR,
+              ' ' 'J_1BDYLIN-WERKS' wa_item-WERKS,
+              ' ' 'J_1BDYLIN-MAKTX' wa_item-MAKTX,
+              ' ' 'J_1BDYLIN-MATKL' wa_item-MATKL,
+              ' ' 'J_1BDYLIN-MENGE' wx_menge,
+              ' ' 'J_1BDYLIN-MEINS' wx_meins,
+              ' ' 'J_1BDYLIN-NETPR' wx_netpr,
+              ' ' 'J_1BDYLIN-CFOP' wx_newcfop,
               ' ' 'J_1BDYLIN-TAXLW1' wx_diricms,    "Direitos ICMS
               ' ' 'J_1BDYLIN-TAXLW2' wx_diripi,    "Direitos IPI
-              ' ' 'J_1BDYLIN-MATORG' wa_itens-MATORG,
-              ' ' 'J_1BDYLIN-MATUSE' wa_itens-MATUSE,
-              ' ' 'J_1BDYLIN-NBM' wa_itens-NBM,
+              ' ' 'J_1BDYLIN-MATORG' wa_item-MATORG,
+              ' ' 'J_1BDYLIN-MATUSE' wa_item-MATUSE,
+              ' ' 'J_1BDYLIN-NBM' wa_item-NBM,
               ' ' 'J_1BDYLIN-TAXLW4' wx_dircofins,   "Direitos COFINS
               ' ' 'J_1BDYLIN-TAXLW5' wx_dirpis,   "Direitos PIS
               ' ' 'J_1BDYLIN-DOCREF' wx_docref,   "Nr Doc original
@@ -265,108 +340,271 @@ LOOP AT ti_itens into wa_itens.
               ' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
               ' ' 'BDC_OKCODE'  '=TAX'.
 
-*   IMPOSTOS
-  PERFORM f_load_bdcdata USING:
-              'X' 'SAPLJ1BB2'   '3000',
-              ' ' 'J_1BDYSTX-TAXTYP(01)' 'ICM0',
-              ' ' 'J_1BDYSTX-BASE(01)' '                 1000',
-              ' ' 'J_1BDYSTX-RATE(01)' '18',
-              ' ' 'J_1BDYSTX-TAXVAL(01)' '                 1,80',
-              ' ' 'J_1BDYSTX-EXCBAS(01)' '',
-              ' ' 'J_1BDYSTX-OTHBAS(01)' '',
-              ' ' 'J_1BDYSTX-TAXTYP(02)' 'IPI2',
-              ' ' 'J_1BDYSTX-BASE(02)' '                 1000',
-              ' ' 'J_1BDYSTX-RATE(02)' '12',
-              ' ' 'J_1BDYSTX-TAXVAL(02)' '                 1,20',
-              ' ' 'J_1BDYSTX-EXCBAS(02)' '',
-              ' ' 'J_1BDYSTX-OTHBAS(02)' '',
-              ' ' 'BDC_OKCODE'  '=TAB1'.
+  "Conta a qtde de impostos do item atual.
+  select count( * )
+    from j_1bnfstx
+    into wx_QtTaxItem
+   where DOCNUM EQ p_docnum AND
+         ITMNUM EQ wa_item-ITMNUM.
 
-** Adiciona novo item.
-*PERFORM f_load_bdcdata USING:
-*            'X' 'SAPLJ1BB2'   '2000',
-*            ' ' 'BDC_OKCODE'  '=ADIT'.
-*
-** ITEM 2 DA NF
-*PERFORM f_load_bdcdata USING:
-*            'X' 'SAPLJ1BB2'   '3000',
-*            ' ' 'J_1BDYLIN-ITMTYP' '1',
-*            ' ' 'J_1BDYLIN-MATNR' '',
-*            ' ' 'J_1BDYLIN-WERKS' '',
-*            ' ' 'J_1BDYLIN-MAKTX' 'MATERIAL 1',
-*            ' ' 'J_1BDYLIN-MATKL' '12-99-99',
-*            ' ' 'J_1BDYLIN-MENGE' '1',
-*            ' ' 'J_1BDYLIN-MEINS' 'PC',
-*            ' ' 'J_1BDYLIN-NETPR' '1,56',
-*            ' ' 'J_1BDYLIN-CFOP' '1914/AA ',
-*            ' ' 'J_1BDYLIN-TAXLW1' '50',
-*            ' ' 'J_1BDYLIN-TAXLW2' '49',
-*            ' ' 'J_1BDYLIN-MATORG' '0',
-*            ' ' 'J_1BDYLIN-MATUSE' '2',
-*            ' ' 'J_1BDYLIN-NBM' '69109000',
-*            ' ' 'J_1BDYLIN-TAXLW4' 'C08',
-*            ' ' 'J_1BDYLIN-TAXLW5' 'P08',
-*            ' ' 'J_1BDYLIN-DOCREF' '3723221',
-*            ' ' 'J_1BDYLIN-ITMREF' '10',
-*            ' ' 'J_1BDYLIN-COD_CTA' '60111102',
-*            ' ' 'BDC_OKCODE'  '=TAX'.
-*
-** IMPOSTOS ITEM 2
-*PERFORM f_load_bdcdata USING:
-*            'X' 'SAPLJ1BB2'   '3000',
-*            ' ' 'J_1BDYSTX-TAXTYP(01)' 'ICM0',
-*            ' ' 'J_1BDYSTX-BASE(01)' '                 1000',
-*            ' ' 'J_1BDYSTX-RATE(01)' '18',
-*            ' ' 'J_1BDYSTX-TAXVAL(01)' '                 1,80',
-*            ' ' 'J_1BDYSTX-EXCBAS(01)' '',
-*            ' ' 'J_1BDYSTX-OTHBAS(01)' '',
-*            ' ' 'J_1BDYSTX-TAXTYP(02)' 'IPI2',
-*            ' ' 'J_1BDYSTX-BASE(02)' '                 1000',
-*            ' ' 'J_1BDYSTX-RATE(02)' '12',
-*            ' ' 'J_1BDYSTX-TAXVAL(02)' '                 1,20',
-*            ' ' 'J_1BDYSTX-EXCBAS(02)' '',
-*            ' ' 'J_1BDYSTX-OTHBAS(02)' '',
-*            ' ' 'BDC_OKCODE'  '=TAB1'.
+  IF wx_qttaxitem > 4.
+    "if sy-subrc ne 0.
+      message 'Erro ao localizar os impostos. Condição não esperada' type 'W'.
+      stop.
+    "endif.
+  ENDIF.
+
+  "Seleciona os Impostos.
+  SELECT ITMNUM
+        TAXTYP
+        BASE
+        RATE
+        TAXVAL
+        EXCBAS
+        OTHBAS
+     INTO TABLE ti_tax
+     FROM j_1bnfstx
+    WHERE DOCNUM EQ p_docnum AND
+          ITMNUM EQ wa_item-ITMNUM.
+
+  wx_idxTax = 1.
+
+  DATA: TAXTYP_1(20) type c, BASE_1(20) type c, RATE_1(20) type c, TAXVAL_1(20) type c, EXCBAS_1(20) type c, OTHBAS_1(20) type c.
+  DATA: TAXTYP_2(20) type c, BASE_2(20) type c, RATE_2(20) type c, TAXVAL_2(20) type c, EXCBAS_2(20) type c, OTHBAS_2(20) type c.
+  DATA: TAXTYP_3(20) type c, BASE_3(20) type c, RATE_3(20) type c, TAXVAL_3(20) type c, EXCBAS_3(20) type c, OTHBAS_3(20) type c.
+  DATA: TAXTYP_4(20) type c, BASE_4(20) type c, RATE_4(20) type c, TAXVAL_4(20) type c, EXCBAS_4(20) type c, OTHBAS_4(20) type c.
+
+  " Loop nos Impostos para coletar.
+  " Está feio isso mas é o que tem pra hoje. =(
+  LOOP AT ti_tax INTO wa_tax.
+
+    DATA: wx_base(15) type c, wx_rate(6) type c, wx_taxval(15) type c, wx_excbas(15) type c, wx_othbas(15) type c.
+
+    write wa_tax-base to wx_base no-zero.
+    write wa_tax-rate to wx_rate no-zero.
+    write wa_tax-taxval to wx_taxval no-zero.
+    write wa_tax-excbas to wx_excbas no-zero.
+    write wa_tax-othbas to wx_othbas no-zero.
+
+    IF wx_idxtax EQ 1.
+      TAXTYP_1 = wa_tax-TAXTYP.
+      BASE_1 = wx_base.
+      RATE_1 = wx_rate.
+      TAXVAL_1 = wx_taxval.
+      EXCBAS_1 = wx_excbas.
+      OTHBAS_1 = wx_othbas.
+    ENDIF.
+
+    IF wx_idxtax EQ 2.
+      TAXTYP_2 = wa_tax-TAXTYP.
+      BASE_2 = wx_base.
+      RATE_2 = wx_rate.
+      TAXVAL_2 = wx_taxval.
+      EXCBAS_2 = wx_excbas.
+      OTHBAS_2 = wx_othbas.
+    ENDIF.
+
+    IF wx_idxtax EQ 3.
+      TAXTYP_3 = wa_tax-TAXTYP.
+      BASE_3 = wx_base.
+      RATE_3 = wx_rate.
+      TAXVAL_3 = wx_taxval.
+      EXCBAS_3 = wx_excbas.
+      OTHBAS_3 = wx_othbas.
+    ENDIF.
+
+    IF wx_idxtax EQ 4.
+      TAXTYP_4 = wa_tax-TAXTYP.
+      BASE_4 = wx_base.
+      RATE_4 = wx_rate.
+      TAXVAL_4 = wx_taxval.
+      EXCBAS_4 = wx_excbas.
+      OTHBAS_4 = wx_othbas.
+    ENDIF.
+
+    wx_idxTax = wx_idxTax + 1.
+
+  ENDLOOP.
+
+  "Salva os impostos
+  IF wx_qttaxitem EQ 1.
+
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYSTX-TAXTYP(01)' TAXTYP_1,
+                ' ' 'J_1BDYSTX-BASE(01)' BASE_1,
+                ' ' 'J_1BDYSTX-RATE(01)' RATE_1,
+                ' ' 'J_1BDYSTX-TAXVAL(01)' TAXVAL_1,
+                ' ' 'J_1BDYSTX-EXCBAS(01)' EXCBAS_1,
+                ' ' 'J_1BDYSTX-OTHBAS(01)' OTHBAS_1,
+                ' ' 'BDC_OKCODE'  '=TAB1'.
+
+  ELSEIF wx_qttaxitem EQ 2.
+
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYSTX-TAXTYP(01)' TAXTYP_1,
+                ' ' 'J_1BDYSTX-BASE(01)' BASE_1,
+                ' ' 'J_1BDYSTX-RATE(01)' RATE_1,
+                ' ' 'J_1BDYSTX-TAXVAL(01)' TAXVAL_1,
+                ' ' 'J_1BDYSTX-EXCBAS(01)' EXCBAS_1,
+                ' ' 'J_1BDYSTX-OTHBAS(01)' OTHBAS_1,
+                ' ' 'J_1BDYSTX-TAXTYP(02)' TAXTYP_2,
+                ' ' 'J_1BDYSTX-BASE(02)' BASE_2,
+                ' ' 'J_1BDYSTX-RATE(02)' RATE_2,
+                ' ' 'J_1BDYSTX-TAXVAL(02)' TAXVAL_2,
+                ' ' 'J_1BDYSTX-EXCBAS(02)' EXCBAS_2,
+                ' ' 'J_1BDYSTX-OTHBAS(02)' OTHBAS_2,
+                "' ' 'BDC_OKCODE'  '/00'.
+                ' ' 'BDC_OKCODE'  '=TAB1'.
+
+  ELSEIF wx_qttaxitem EQ 3.
+
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYSTX-TAXTYP(01)' TAXTYP_1,
+                ' ' 'J_1BDYSTX-BASE(01)' BASE_1,
+                ' ' 'J_1BDYSTX-RATE(01)' RATE_1,
+                ' ' 'J_1BDYSTX-TAXVAL(01)' TAXVAL_1,
+                ' ' 'J_1BDYSTX-EXCBAS(01)' EXCBAS_1,
+                ' ' 'J_1BDYSTX-OTHBAS(01)' OTHBAS_1,
+                ' ' 'J_1BDYSTX-TAXTYP(02)' TAXTYP_2,
+                ' ' 'J_1BDYSTX-BASE(02)' BASE_2,
+                ' ' 'J_1BDYSTX-RATE(02)' RATE_2,
+                ' ' 'J_1BDYSTX-TAXVAL(02)' TAXVAL_2,
+                ' ' 'J_1BDYSTX-EXCBAS(02)' EXCBAS_2,
+                ' ' 'J_1BDYSTX-OTHBAS(02)' OTHBAS_2,
+                ' ' 'J_1BDYSTX-TAXTYP(03)' TAXTYP_3,
+                ' ' 'J_1BDYSTX-BASE(03)' BASE_3,
+                ' ' 'J_1BDYSTX-RATE(03)' RATE_3,
+                ' ' 'J_1BDYSTX-TAXVAL(03)' TAXVAL_3,
+                ' ' 'J_1BDYSTX-EXCBAS(03)' EXCBAS_3,
+                ' ' 'J_1BDYSTX-OTHBAS(03)' OTHBAS_3,
+                ' ' 'BDC_OKCODE'  '=TAB1'.
+
+  ELSEIF wx_qttaxitem EQ 4.
+
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYSTX-TAXTYP(01)' TAXTYP_1,
+                ' ' 'J_1BDYSTX-BASE(01)' BASE_1,
+                ' ' 'J_1BDYSTX-RATE(01)' RATE_1,
+                ' ' 'J_1BDYSTX-TAXVAL(01)' TAXVAL_1,
+                ' ' 'J_1BDYSTX-EXCBAS(01)' EXCBAS_1,
+                ' ' 'J_1BDYSTX-OTHBAS(01)' OTHBAS_1,
+                ' ' 'J_1BDYSTX-TAXTYP(02)' TAXTYP_2,
+                ' ' 'J_1BDYSTX-BASE(02)' BASE_2,
+                ' ' 'J_1BDYSTX-RATE(02)' RATE_2,
+                ' ' 'J_1BDYSTX-TAXVAL(02)' TAXVAL_2,
+                ' ' 'J_1BDYSTX-EXCBAS(02)' EXCBAS_2,
+                ' ' 'J_1BDYSTX-OTHBAS(02)' OTHBAS_2,
+                ' ' 'J_1BDYSTX-TAXTYP(03)' TAXTYP_3,
+                ' ' 'J_1BDYSTX-BASE(03)' BASE_3,
+                ' ' 'J_1BDYSTX-RATE(03)' RATE_3,
+                ' ' 'J_1BDYSTX-TAXVAL(03)' TAXVAL_3,
+                ' ' 'J_1BDYSTX-EXCBAS(03)' EXCBAS_3,
+                ' ' 'J_1BDYSTX-OTHBAS(03)' OTHBAS_3,
+                ' ' 'J_1BDYSTX-TAXTYP(04)' TAXTYP_4,
+                ' ' 'J_1BDYSTX-BASE(04)' BASE_4,
+                ' ' 'J_1BDYSTX-RATE(04)' RATE_4,
+                ' ' 'J_1BDYSTX-TAXVAL(04)' TAXVAL_4,
+                ' ' 'J_1BDYSTX-EXCBAS(04)' EXCBAS_4,
+                ' ' 'J_1BDYSTX-OTHBAS(04)' OTHBAS_4,
+                ' ' 'BDC_OKCODE'  '=TAB1'.
+
+  ENDIF.
+
+  "Se é o último item, tem que ir para o Tab3 de Parceiro.
+  IF wx_curitem EQ wx_countitens.
+
+    "Vai pra tela de Parceiros
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '2000',
+                ' ' 'BDC_OKCODE'  '=TAB3'.
+
+  ELSE.
+
+    "Adiciona novo item.
+    PERFORM f_load_bdcdata USING:
+                'X' 'SAPLJ1BB2'   '2000',
+                ' ' 'BDC_OKCODE'  '=ADIT'.
+  ENDIF.
 
 ENDLOOP.
 
-* Volta pra Tela Inicial
-* Vai pra tela de Parceiros
-PERFORM f_load_bdcdata USING:
-            'X' 'SAPLJ1BB2'   '2000',
-            ' ' 'BDC_OKCODE'  '=TAB3'.
-
 * Parceiro 2300
-PERFORM f_load_bdcdata USING:
+IF p_parid1 IS INITIAL.
+  PERFORM f_load_bdcdata USING:
+              'X' 'SAPLJ1BB2'   '2000',
+              ' ' 'J_1BDYNAD-PARVW(01)' P_PARVW,
+              ' ' 'J_1BDYNAD-PARID(01)' p_parid,
+              ' ' 'BDC_OKCODE'  '=TAB4'.    "Vai pra tela de Mensagens
+ELSE.
+  PERFORM f_load_bdcdata USING:
             'X' 'SAPLJ1BB2'   '2000',
-            ' ' 'J_1BDYNAD-PARVW(01)' 'AG',
-            ' ' 'J_1BDYNAD-PARID(01)' '173210',
-            "' ' 'J_1BDYNAD-PARVW(02)' 'SP',
-            "' ' 'J_1BDYNAD-PARID(02)' '94185',
+            ' ' 'J_1BDYNAD-PARVW(01)' P_PARVW,
+            ' ' 'J_1BDYNAD-PARID(01)' p_parid,
+            ' ' 'J_1BDYNAD-PARVW(02)' 'SP',
+            ' ' 'J_1BDYNAD-PARID(02)' p_parid1, "Parid do Transportador
             ' ' 'BDC_OKCODE'  '=TAB4'.    "Vai pra tela de Mensagens
+ENDIF.
 
-* Mensagens
-PERFORM f_load_bdcdata USING:
-            'X' 'SAPLJ1BB2'   '2000',
-            ' ' 'J_1BDYFTX-MESSAGE(01)' 'teste',
-            ' ' 'J_1BDYFTX-MESSAGE(02)' 'teste 2',
-            ' ' 'BDC_OKCODE'  '=TAB5'.    "Vai pra tela de Transporte
+"Conta a qtde de msgs.
+select count( * )
+  from J_1BNFFTX
+  into wx_qtmsgs
+ where DOCNUM EQ p_docnum.
+
+SELECT SEQNUM MESSAGE
+  INTO TABLE ti_msg
+  FROM J_1BNFFTX
+ WHERE DOCNUM EQ p_docnum
+  ORDER BY SEQNUM.
+
+DATA: fieldmsg(20) type c,
+      wx_idxMsg type n value 0,
+      wx_nextCODE(5) type c value '/00'.
+
+"Se estiver na última msg tem que ir para Transporte.
+
+LOOP AT ti_msg INTO wa_msg.
+
+  wx_idxMsg = wx_idxMsg + 1.
+
+  CONCATENATE 'J_1BDYFTX-MESSAGE(' wx_idxMsg ')' INTO fieldmsg.
+
+  IF wx_idxmsg EQ wx_qtmsgs.
+    wx_nextcode = '=TAB5'.
+  ENDIF.
+
+  PERFORM f_load_bdcdata USING:
+              'X' 'SAPLJ1BB2'   '2000',
+              ' ' fieldmsg wa_msg-message,
+              ' ' 'BDC_OKCODE'  wx_nextcode.
+
+ENDLOOP.
+
+data: wx_ANZPK(5) type c, wx_NTGEW(15) type c, wx_BRGEW(15) type c.
+
+write wa_header-ANZPK to wx_anzpk NO-ZERO.
+write wa_header-NTGEW to wx_NTGEW NO-ZERO.
+write wa_header-BRGEW to wx_BRGEW NO-ZERO.
 
 * Transporte
 PERFORM f_load_bdcdata USING:
             'X' 'SAPLJ1BB2'   '2000',
-            ' ' 'J_1BDYDOC-INCO1' 'FOB',
-            ' ' 'J_1BDYDOC-INCO2' 'FOB2',
-            ' ' 'J_1BDYDOC-ANZPK' '10',   "Qtde
-            ' ' 'J_1BDYDOC-SHPUNT' 'VOL',  "Volume
-            ' ' 'J_1BDYDOC-NTGEW' '20',  "Peso Líquido
-            ' ' 'J_1BDYDOC-BRGEW' '30',  "Peso Bruto
-            ' ' 'J_1BDYDOC-GEWEI' 'KG',  "Unidade de Peso
+            ' ' 'J_1BDYDOC-INCO1' wa_header-INCO1,
+            ' ' 'J_1BDYDOC-INCO2' wa_header-INCO2,
+            ' ' 'J_1BDYDOC-ANZPK' wa_header-ANZPK,   "Qtde
+            ' ' 'J_1BDYDOC-SHPUNT' wa_header-SHPUNT,  "Volume
+            ' ' 'J_1BDYDOC-NTGEW' wx_NTGEW,  "Peso Líquido
+            ' ' 'J_1BDYDOC-BRGEW' wx_BRGEW,  "Peso Bruto
+            ' ' 'J_1BDYDOC-GEWEI' wa_header-GEWEI,  "Unidade de Peso
             ' ' 'BDC_OKCODE'  '=TAB1'.    "Vai pra Tela Inicial
 
-PERFORM f_load_bdcdata USING:
-            'X' 'SAPLJ1BB2'   '2000',
-            ' ' 'BDC_OKCODE'  '=SAVE'.
+*PERFORM f_load_bdcdata USING:
+*            'X' 'SAPLJ1BB2'   '2000',
+*            ' ' 'BDC_OKCODE'  '=SAVE'.
 
 wa_params-dismode  = 'A'. " ( A - Visivel N - Background )
 wa_params-racommit = 'X'.
@@ -393,15 +631,12 @@ WRITE / VL_MSG.
 
 ENDLOOP.
 
-
-
 *&---------------------------------------------------------------------*
 *&      Form  F_LOAD_BDCDATA
 *&---------------------------------------------------------------------*
 FORM f_load_bdcdata USING p_x
                           p_2
                           p_3.
-
   IF p_x = 'X'.
     wa_bdc-program  = p_2.
     wa_bdc-dynpro   = p_3.
