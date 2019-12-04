@@ -13,8 +13,8 @@ TABLES: j_1bnfdoc, j_1bnflin.
 
 TYPES:
       begin of ty_header,
-        branch        like j_1bnfdoc-branch,
-        bukrs         like j_1bnfdoc-bukrs,
+        "branch        like j_1bnfdoc-branch,  " Local de negócios
+        bukrs         like j_1bnfdoc-bukrs,   " Empresa
         docnum        like j_1bnfdoc-docnum,
         nfenum        like j_1bnfdoc-nfenum,    "Nr NF-e
         docdat        like j_1bnfdoc-docdat,
@@ -125,7 +125,8 @@ selection-screen end of block b2.
 
 "Com os parâmetros
 selection-screen begin of block b3 with frame title text-t03.
-  parameters: P_NFTYPE    TYPE j_1bnfdoc-NFTYPE,  "Categoria NF
+  parameters: P_BRANCH       TYPE j_1bnfdoc-branch OBLIGATORY,  "Local de negócios
+              P_NFTYPE    TYPE j_1bnfdoc-NFTYPE,  "Categoria NF
               P_DOCDAT    TYPE j_1bnfdoc-docdat OBLIGATORY,  "Data do Documento
               P_NVCFOP    TYPE J_1BDYLIN-CFOP,    "Novo CFOP
               "P_NVICMS    TYPE J_1BDYLIN-TAXLW1,  "Novo Direito Fiscal ICMS
@@ -168,14 +169,15 @@ IF P_CFEIRA EQ 'X'.
   wx_bun_taxlw5 = 'P08'.  "PIS
   p_nvcfop = '1914/AA'.    "Se ocorrer erro no CFOP a J1B1N vai chiar.
   p_savref = 'X'.
+  p_nftype = 'I0'.
   wx_bundle = 'S'.
 ENDIF.
 
 "-- Primeiro Uso desta Aplicação:
 "   -- Dar entrada de Notas Fiscais de Remessa de Exporição/Feira (5914/6914) como (1914)
 
-SELECT branch
-      bukrs
+SELECT "branch
+      bukrs     "Empresa
       docnum
       nfenum     "Nr NFe
       docdat    "Data do Documento
@@ -202,10 +204,6 @@ if sy-subrc ne 0.
   message 'Documento não encontrado.' type 'I'.
   stop.
 endif.
-
-*IF P_CFEIRA EQ 'X'.
-*
-*ENDIF.
 
 * Data de Hoje
 "write SY-DATUM to wx_curdate dd/mm/yyyy.
@@ -272,8 +270,8 @@ ENDIF.
 PERFORM f_load_bdcdata USING:
             'X' 'SAPMJ1B1'   '0900',
             ' ' 'J_1BDYDOC-NFTYPE' wx_nftype,    "i0, i1, i8, etc...
-            ' ' 'J_1BDYDOC-BUKRS'  wa_header-bukrs,
-            ' ' 'J_1BDYDOC-BRANCH' wa_header-branch,
+            ' ' 'J_1BDYDOC-BUKRS'  wa_header-bukrs,   "Empresa
+            ' ' 'J_1BDYDOC-BRANCH' p_branch,          "Local de negócios
             ' ' 'J_1BDYDOC-PARVW'  wx_parvw,
             ' ' 'J_1BDYDOC-PARID'  wx_parid,
             ' ' 'J_1BDYLIN-INCLTX' 'X'.
@@ -416,28 +414,56 @@ LOOP AT ti_itens into wa_item.
 
   ELSE.
 
-    PERFORM f_load_bdcdata USING:
-                'X' 'SAPLJ1BB2'   '3000',
-                ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
-                ' ' 'J_1BDYLIN-MATNR' wa_item-MATNR,
-                ' ' 'J_1BDYLIN-WERKS' wa_item-WERKS,
-                ' ' 'J_1BDYLIN-MAKTX' wa_item-MAKTX,
-                ' ' 'J_1BDYLIN-MATKL' wa_item-MATKL,
-                ' ' 'J_1BDYLIN-MENGE' wx_menge,
-                ' ' 'J_1BDYLIN-MEINS' wx_meins,
-                ' ' 'J_1BDYLIN-NETPR' wx_netpr,           "Preço (da j1b1 aba Item)
-                ' ' 'J_1BDYLIN-CFOP' wx_newcfop,
-                ' ' 'J_1BDYLIN-TAXLW1' wa_item-TAXLW1,    "Direitos ICMS
-                ' ' 'J_1BDYLIN-TAXLW2' wa_item-TAXLW2,    "Direitos IPI
-                ' ' 'J_1BDYLIN-MATORG' wa_item-MATORG,
-                ' ' 'J_1BDYLIN-MATUSE' wa_item-MATUSE,
-                ' ' 'J_1BDYLIN-NBM' wa_item-NBM,
-                ' ' 'J_1BDYLIN-TAXLW4' wa_item-TAXLW4,   "Direitos COFINS
-                ' ' 'J_1BDYLIN-TAXLW5' wa_item-TAXLW5,   "Direitos PIS
-                ' ' 'J_1BDYLIN-DOCREF' wx_docref,   "Nr Doc original
-                ' ' 'J_1BDYLIN-ITMREF' wx_itmnum,     "Item Doc Original
-                ' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
-                ' ' 'BDC_OKCODE'  '=TAX'.
+    IF P_SAVREF EQ 'X'.
+
+      PERFORM f_load_bdcdata USING:
+                  'X' 'SAPLJ1BB2'   '3000',
+                  ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
+                  ' ' 'J_1BDYLIN-MATNR' wa_item-MATNR,
+                  ' ' 'J_1BDYLIN-WERKS' wa_item-WERKS,
+                  ' ' 'J_1BDYLIN-MAKTX' wa_item-MAKTX,
+                  ' ' 'J_1BDYLIN-MATKL' wa_item-MATKL,
+                  ' ' 'J_1BDYLIN-MENGE' wx_menge,
+                  ' ' 'J_1BDYLIN-MEINS' wx_meins,
+                  ' ' 'J_1BDYLIN-NETPR' wx_netpr,           "Preço (da j1b1 aba Item)
+                  ' ' 'J_1BDYLIN-CFOP' wx_newcfop,
+                  ' ' 'J_1BDYLIN-TAXLW1' wa_item-TAXLW1,    "Direitos ICMS
+                  ' ' 'J_1BDYLIN-TAXLW2' wa_item-TAXLW2,    "Direitos IPI
+                  ' ' 'J_1BDYLIN-MATORG' wa_item-MATORG,
+                  ' ' 'J_1BDYLIN-MATUSE' wa_item-MATUSE,
+                  ' ' 'J_1BDYLIN-NBM' wa_item-NBM,
+                  ' ' 'J_1BDYLIN-TAXLW4' wa_item-TAXLW4,   "Direitos COFINS
+                  ' ' 'J_1BDYLIN-TAXLW5' wa_item-TAXLW5,   "Direitos PIS
+                  ' ' 'J_1BDYLIN-DOCREF' wx_docref,   "Nr Doc original
+                  ' ' 'J_1BDYLIN-ITMREF' wx_itmnum,     "Item Doc Original
+                  ' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
+                  ' ' 'BDC_OKCODE'  '=TAX'.
+
+    ELSE.
+
+      PERFORM f_load_bdcdata USING:
+                  'X' 'SAPLJ1BB2'   '3000',
+                  ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
+                  ' ' 'J_1BDYLIN-MATNR' wa_item-MATNR,
+                  ' ' 'J_1BDYLIN-WERKS' wa_item-WERKS,
+                  ' ' 'J_1BDYLIN-MAKTX' wa_item-MAKTX,
+                  ' ' 'J_1BDYLIN-MATKL' wa_item-MATKL,
+                  ' ' 'J_1BDYLIN-MENGE' wx_menge,
+                  ' ' 'J_1BDYLIN-MEINS' wx_meins,
+                  ' ' 'J_1BDYLIN-NETPR' wx_netpr,           "Preço (da j1b1 aba Item)
+                  ' ' 'J_1BDYLIN-CFOP' wx_newcfop,
+                  ' ' 'J_1BDYLIN-TAXLW1' wa_item-TAXLW1,    "Direitos ICMS
+                  ' ' 'J_1BDYLIN-TAXLW2' wa_item-TAXLW2,    "Direitos IPI
+                  ' ' 'J_1BDYLIN-MATORG' wa_item-MATORG,
+                  ' ' 'J_1BDYLIN-MATUSE' wa_item-MATUSE,
+                  ' ' 'J_1BDYLIN-NBM' wa_item-NBM,
+                  ' ' 'J_1BDYLIN-TAXLW4' wa_item-TAXLW4,   "Direitos COFINS
+                  ' ' 'J_1BDYLIN-TAXLW5' wa_item-TAXLW5,   "Direitos PIS
+                  ' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
+                  ' ' 'BDC_OKCODE'  '=TAX'.
+
+    ENDIF.
+
   ENDIF.
 
   "Conta a qtde de impostos do item atual.
@@ -916,7 +942,8 @@ ENDLOOP.
 select count( * )
   from J_1BNFFTX
   into wx_qtmsgs
- where DOCNUM EQ p_docnum.
+ where DOCNUM EQ p_docnum
+   AND MANUAL EQ 'X'.
 
 "GOTO Mensagens
 wx_nextcode = '=TAB4'.
@@ -951,10 +978,12 @@ ENDIF.
 IF wx_nextcode EQ '=TAB4'.
 
   "MENSAGENS
+  "Não pega mensagens automáticas.
   SELECT SEQNUM MESSAGE
     INTO TABLE ti_msg
     FROM J_1BNFFTX
    WHERE DOCNUM EQ p_docnum
+     AND MANUAL EQ 'X'
     ORDER BY SEQNUM.
 
   DATA: fieldmsg(20) type c,
@@ -962,14 +991,13 @@ IF wx_nextcode EQ '=TAB4'.
 
   wx_nextCODE = '/00'.
 
-  "Se estiver na última msg tem que ir para Transporte.
   LOOP AT ti_msg INTO wa_msg.
 
     wx_idxMsg = wx_idxMsg + 1.
 
     CONCATENATE 'J_1BDYFTX-MESSAGE(' wx_idxMsg ')' INTO fieldmsg.
 
-    IF wx_idxmsg EQ wx_qtmsgs.
+    IF wx_idxmsg EQ wx_qtmsgs.  "Se estiver na última msg tem que ir para Transporte.
       wx_nextcode = '=TAB5'.
     ENDIF.
 
