@@ -1,0 +1,517 @@
+*&---------------------------------------------------------------------*
+*& Report  Z_J1B1_IMPORTA_CSV
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT Z_J1B1_IMPORTA_CSV.
+
+TABLES: j_1bnfdoc, j_1bnflin.
+
+DATA: it_files type filetable,
+      wa_files type file_table,
+      v_rc     type i.
+
+TYPES:
+      BEGIN of ty_j1bnfdoc,
+        TP_REG(1) type c,
+        NFTYPE TYPE j_1bnfdoc-NFTYPE,
+        BUKRS TYPE j_1bnfdoc-BUKRS,
+        BRANCH TYPE j_1bnfdoc-BRANCH,
+        PARVW TYPE j_1bnfdoc-PARVW,
+        PARID TYPE j_1bnfdoc-PARID,
+        "DOCDAT TYPE j_1bnfdoc-DOCDAT,
+        OBSERVAT TYPE j_1bnfdoc-OBSERVAT,
+        "DOCREF TYPE j_1bnfdoc-DOCREF,
+        PARVW_TRANSP TYPE j_1bnfdoc-PARVW,
+        PARID_TRANSP TYPE j_1bnfdoc-PARID,
+        INCO1 TYPE j_1bnfdoc-INCO1,
+        INCO2 TYPE j_1bnfdoc-INCO2,
+        ANZPK(5) TYPE c, "j_1bnfdoc-ANZPK,
+        SHPUNT(3) TYPE c, "j_1bnfdoc-SHPUNT,
+        NTGEW(15) TYPE c,
+        BRGEW(15) TYPE c, "j_1bnfdoc-BRGEW,
+        GEWEI TYPE j_1bnfdoc-GEWEI,
+     END of ty_j1bnfdoc,
+     BEGIN of ty_j1bdylin,
+       TP_REG(1) type c,
+       ITEM(3)  type c,
+       itmtyp  like  j_1bdylin-itmtyp,
+       matnr   like  j_1bdylin-matnr,
+       werks   like  j_1bdylin-werks,
+       maktx   like  j_1bdylin-maktx,
+       matkl   like  j_1bdylin-matkl,
+       menge(16)     type c,              "Quantidade
+       meins   like  j_1bdylin-meins,     "Unidade de medida básica
+       netpr(16)     type c,              "Preço líquido
+       "netwr(15)     type c, "j_1bdylin-netwr,
+       cfop    like  j_1bdylin-cfop,
+       taxlw1  like  j_1bdylin-taxlw1,
+       taxlw2  like  j_1bdylin-taxlw2,
+       matorg  like  j_1bdylin-matorg,
+       matuse  like  j_1bdylin-matuse,
+       nbm     like  j_1bdylin-nbm,
+       taxlw4  like  j_1bdylin-taxlw4,
+       taxlw5  like  j_1bdylin-taxlw5,
+       "docref  like  j_1bdylin-docref,
+       "itmref  like  j_1bdylin-itmref,
+       cod_cta like  j_1bdylin-cod_cta,
+     end of ty_j1bdylin,
+     begin of ty_j1bnfstx,
+       TP_REG(1) type c,
+       ITEM(3) type c,
+       "itmnum   like  j_1bnfstx-itmnum,
+       taxtyp     like  j_1bnfstx-taxtyp,
+       base(20)   type  c, "j_1bnfstx-base,
+       rate(20)   type  c, "j_1bnfstx-rate,
+       taxval(20) type  c, "j_1bnfstx-taxval,
+       excbas(20) type  c, "j_1bnfstx-excbas,
+       othbas(20) type  c, "j_1bnfstx-othbas,
+     end of ty_j1bnfstx,
+     begin of ty_j1bnfftx,
+       TP_REG(1) type c,
+       seqnum   like  j_1bnfftx-seqnum,
+       message  like  j_1bnfftx-message,
+     end of ty_j1bnfftx.
+
+*Tabela Interna
+DATA: ti_bdc      type table of bdcdata,
+      ti_message  type table of bdcmsgcoll.
+
+*Work Area
+DATA: wa_bdc      type bdcdata,
+      wa_params   type ctu_params,
+      wa_message  type bdcmsgcoll.
+
+"GUI_UPLOAD
+DATA: lv_file  type string.
+DATA: qtd_msgs type i value 0.
+
+"TABELA E WA PARA O GUI UPLOAD
+types:begin of ty_arquivo,
+  linha type c length 500,
+end of ty_arquivo.
+
+DATA it_outdata type standard table of ty_arquivo with header line.
+DATA wa_outdata type ty_arquivo.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-t01.
+PARAMETER:      p_file(1024) type c DEFAULT 'C:\Users\sobebe01\Desktop\Solicitação NF Writer\031219 Solicitação NF Writer -CSV03-dez-2019.csv'.
+SELECTION-SCREEN END OF BLOCK b1.
+
+at selection-screen on value-request for p_file.
+
+********************* metodo para exibir o popup de seleção de arquivos
+  call method cl_gui_frontend_services=>file_open_dialog
+    changing
+      file_table              = it_files
+      rc                      = v_rc
+    exceptions
+      file_open_dialog_failed = 1
+      cntl_error              = 2
+      error_no_gui            = 3
+      not_supported_by_gui    = 4
+      others                  = 5.
+
+  if sy-subrc ne 0.
+    message id sy-msgid type sy-msgty number sy-msgno
+    with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  else.
+************************** identifica o arquivo selecionado e joga para o parametro de seleção
+    read table it_files into wa_files index 1.
+    p_file = wa_files-filename.
+  endif.
+
+START-OF-SELECTION.
+
+lv_file = p_file.
+
+  call function 'GUI_UPLOAD'
+    exporting
+      filename                = lv_file
+      filetype                = 'ASC'
+      has_field_separator     = ' '
+      header_length           = 0
+      read_by_line            = 'X'
+      dat_mode                = ' '
+      codepage                = ' '
+      ignore_cerr             = abap_true
+      replacement             = '#'
+      check_bom               = ' '
+      no_auth_check           = ' '
+                "IMPORTING
+                "  FILELENGTH                    =
+                "  HEADER                        =
+    tables
+      data_tab                = it_outdata
+    exceptions
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      others                  = 17.
+
+  if sy-subrc ne 0.
+    message id sy-msgid type sy-msgty number sy-msgno
+        with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  endif.
+
+  if sy-subrc ne 0.
+    "WRITE: / v_codservico_sp, v_codservico_nac, v_fl_construtora.
+    write: / 'Erro'.
+  endif.
+
+  "Carrega os dados.
+  DATA TP_REG(1) type c.
+
+  DATA it_header type standard table of ty_j1bnfdoc with header line.
+  DATA wa_header type ty_j1bnfdoc.
+
+  DATA it_items type standard table of ty_j1bdylin with header line.
+  DATA wa_item type ty_j1bdylin.
+
+  DATA it_msgs type standard table of ty_j1bnfftx with header line.
+  DATA wa_msg type ty_j1bnfftx.
+
+  DATA it_taxes type standard table of ty_j1bnfstx with header line.
+  DATA wa_tax type ty_j1bnfstx.
+
+  "Lê os dados do arquivo carregado.
+  loop at it_outdata into wa_outdata.
+
+    tp_reg = wa_outdata(1).
+
+    IF tp_reg EQ '1'.     "mestre
+
+      split wa_outdata at ',' into
+        wa_header-TP_REG
+        wa_header-NFTYPE
+        wa_header-BUKRS
+        wa_header-BRANCH
+        wa_header-PARVW
+        wa_header-PARID
+        "wa_header-DOCDAT
+        wa_header-OBSERVAT
+        wa_header-PARVW_TRANSP
+        wa_header-PARID_TRANSP
+        wa_header-INCO1         "Incoterms parte 1
+        wa_header-INCO2         "Incoterms parte 2
+        wa_header-ANZPK         "Número total dos volumes da remessa
+        wa_header-SHPUNT        "Meio auxiliar de expedição (espécie)
+        wa_header-NTGEW         "Peso líquido
+        wa_header-BRGEW         "Peso bruto
+        wa_header-GEWEI.         "Unidade de peso
+
+      append wa_header to it_header.
+
+    ELSEIF tp_reg EQ '3'.     "itens
+
+      split wa_outdata at ',' into
+        wa_item-TP_REG
+        wa_item-ITEM
+        wa_item-itmtyp
+        wa_item-matnr
+        wa_item-werks
+        wa_item-maktx
+        wa_item-matkl
+        wa_item-menge
+        wa_item-meins
+        wa_item-netpr
+        "wa_item-netwr
+        wa_item-cfop
+        wa_item-taxlw1
+        wa_item-taxlw2
+        wa_item-matorg
+        wa_item-matuse
+        wa_item-nbm
+        wa_item-taxlw4
+        wa_item-taxlw5
+        wa_item-cod_cta.
+
+      append wa_item to it_items.
+
+    ELSEIF tp_reg EQ '2'.     "mensagens
+
+      split wa_outdata at ',' into
+        wa_msg-TP_REG
+        wa_msg-message.
+
+      append wa_msg to it_msgs.
+
+    ELSEIF tp_reg EQ '4'.     "impostos
+
+      "Carrega os impostos de cada item.
+      split wa_outdata at ',' into
+        wa_tax-TP_REG
+        wa_tax-ITEM
+        wa_tax-taxtyp
+        wa_tax-base
+        wa_tax-rate
+        wa_tax-taxval
+        wa_tax-excbas
+        wa_tax-othbas.
+
+      append wa_tax to it_taxes.
+
+      qtd_msgs = qtd_msgs + 1.
+
+    ENDIF.
+
+  endloop.
+
+  "write: / wa_header-PARID.
+
+  "Carrega os dados mestre.
+  perform f_load_bdcdata using:
+            'X' 'SAPMJ1B1'   '0900',
+            ' ' 'J_1BDYDOC-NFTYPE' wa_header-nftype,    "i0, i1, i8, etc...
+            ' ' 'J_1BDYDOC-BUKRS'  wa_header-bukrs,   "Empresa
+            ' ' 'J_1BDYDOC-BRANCH' wa_header-branch,          "Local de negócios
+            ' ' 'J_1BDYDOC-PARVW'  wa_header-parvw,
+            ' ' 'J_1BDYDOC-PARID'  wa_header-parid,
+            ' ' 'J_1BDYLIN-INCLTX' 'X'.
+
+  perform f_load_bdcdata using:
+              'X' 'SAPLJ1BB2'   '2000',
+              "' ' 'J_1BDYDOC-DOCDAT' wa_header-docdat,
+              ' ' 'J_1BDYDOC-OBSERVAT' wa_header-OBSERVAT,
+              ' ' 'BDC_OKCODE'  '=TAB3'.                      "Vai para Parceiros
+
+  perform f_load_bdcdata using:
+              'X' 'SAPLJ1BB2'   '2000',
+              ' ' 'J_1BDYNAD-PARVW(01)' wa_header-parvw,
+              ' ' 'J_1BDYNAD-PARID(01)' wa_header-parid,
+              ' ' 'J_1BDYNAD-PARVW(02)' wa_header-parvw_transp,
+              ' ' 'J_1BDYNAD-PARID(02)' wa_header-parid_transp,
+              ' ' 'BDC_OKCODE'  '=TAB5'.                      "Vai para Transporte
+
+  REPLACE ALL OCCURRENCES OF '.' IN wa_header-ntgew WITH ','.
+  REPLACE ALL OCCURRENCES OF '.' IN wa_header-brgew WITH ','.
+
+  perform f_load_bdcdata using:
+              'X' 'SAPLJ1BB2'   '2000',
+              ' ' 'J_1BDYDOC-INCO1' wa_header-inco1,
+              ' ' 'J_1BDYDOC-INCO2' wa_header-inco2,
+              ' ' 'J_1BDYDOC-ANZPK' wa_header-anzpk,   "Qtde
+              ' ' 'J_1BDYDOC-SHPUNT' wa_header-shpunt,  "Volume
+              ' ' 'J_1BDYDOC-NTGEW' wa_header-ntgew,  "Peso Líquido
+              ' ' 'J_1BDYDOC-BRGEW' wa_header-brgew,  "Peso Bruto
+              ' ' 'J_1BDYDOC-GEWEI' wa_header-gewei,  "Unidade de Peso
+              ' ' 'BDC_OKCODE'  '=TAB1'.    "Vai pra Tela Inicial
+
+  perform f_load_bdcdata using:
+              'X' 'SAPLJ1BB2'   '2000',
+              ' ' 'BDC_OKCODE'  '=ADIT'.    "Vai pra Tela Inicial
+
+  "Verifica e flega se todas as taxes tiverem item 0, então o mesmo imposto para todos.
+  DATA wx_TaxesItemZero type i value 0.
+  DATA idx_imp type n value 1.
+
+  LOOP AT it_taxes into wa_tax.
+    move wa_tax-item to wx_TaxesItemZero.
+  ENDLOOP.
+
+  "Vai para Itens (itens define mensagens automáticas)
+  LOOP AT it_items into wa_item.
+
+    REPLACE ALL OCCURRENCES OF '.' IN wa_item-netpr WITH ','.
+
+    perform f_load_bdcdata using:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
+                ' ' 'J_1BDYLIN-MATNR' wa_item-matnr,
+                ' ' 'J_1BDYLIN-WERKS' wa_item-werks,
+                ' ' 'J_1BDYLIN-MAKTX' wa_item-maktx,
+                ' ' 'J_1BDYLIN-MATKL' wa_item-matkl,
+                ' ' 'J_1BDYLIN-MENGE' wa_item-menge,      "Qtde
+                ' ' 'J_1BDYLIN-MEINS' wa_item-meins,      "Unid Med
+                ' ' 'J_1BDYLIN-NETPR' wa_item-netpr,      "Valor Unitário
+                ' ' 'J_1BDYLIN-CFOP' wa_item-cfop,
+                ' ' 'J_1BDYLIN-TAXLW1' wa_item-taxlw1,    "Direitos ICMS
+                ' ' 'J_1BDYLIN-TAXLW2' wa_item-taxlw2,    "Direitos IPI
+                ' ' 'J_1BDYLIN-MATORG' wa_item-matorg,
+                ' ' 'J_1BDYLIN-MATUSE' wa_item-matuse,
+                ' ' 'J_1BDYLIN-NBM' wa_item-nbm,
+                ' ' 'J_1BDYLIN-TAXLW4' wa_item-taxlw4,   "Direitos COFINS
+                ' ' 'J_1BDYLIN-TAXLW5' wa_item-taxlw5,   "Direitos PIS
+                "' ' 'J_1BDYLIN-DOCREF' wa_docref,   "Nr Doc original
+                "' ' 'J_1BDYLIN-ITMREF' wa_itmnum,     "Item Doc Original
+                ' ' 'J_1BDYLIN-COD_CTA' wa_item-cod_cta,
+                ' ' 'BDC_OKCODE'  '=TAX'.
+
+    LOOP AT it_taxes into wa_tax.
+      IF wa_item-item EQ wa_tax-ITEM.
+        perform insere_imposto  using wa_tax idx_imp.
+        idx_imp = idx_imp + 1.
+      ENDIF.
+    ENDLOOP.
+
+  ENDLOOP.
+
+  IF wx_taxesitemzero EQ 0.
+    "O mesmo imposto para todos.
+    LOOP AT it_taxes into wa_tax.
+      perform insere_imposto  using wa_tax idx_imp.
+      idx_imp = idx_imp + 1.
+    ENDLOOP.
+  ENDIF.
+
+  "Vai para Mensagens
+
+  DATA fieldmsg type fnam_____4.
+  DATA idx_msg type n value 1.
+
+  IF qtd_msgs > 0.
+
+    perform f_load_bdcdata using:
+          ' '     'BDC_OKCODE'          '/00',
+          'X'     'SAPLJ1BB2'           '3000',
+          ' '     'BDC_OKCODE'          '=BACK',
+          'X'      'SAPLJ1BB2'              '2000',
+          ' '     'BDC_OKCODE'          '=TAB4'.
+
+    loop at it_msgs into wa_msg.
+
+      concatenate 'J_1BDYFTX-MESSAGE(' idx_msg ')' into fieldmsg.
+
+      perform f_load_bdcdata using:
+              'X' 'SAPLJ1BB2'   '2000',
+              ' ' fieldmsg wa_msg-message.
+              "' ' 'BDC_OKCODE'  '/00'.
+
+      idx_msg = idx_msg + 1.
+
+    endloop.
+
+    "vai pro início.
+    perform f_load_bdcdata using:
+        ' '     'BDC_OKCODE'          '/00',
+        'X'     'SAPLJ1BB2'           '2000',
+        ' '     'BDC_OKCODE'          '=TAB1'.
+
+  ELSE.
+
+    "sem mensagens; vai pro início.
+    perform finaliza_impostos.
+
+  ENDIF.
+
+  wa_params-dismode  = 'A'. " ( A - Visivel N - Background )
+  wa_params-racommit = 'X'.
+
+  call transaction 'J1B1N'
+             using ti_bdc
+              mode 'E'   "Errors only
+      "OPTIONS FROM wa_params
+     messages into ti_message. "Retorno do sucesso ou fracasso do batch input.
+
+  data vl_msg type string. "STRING É IGUAL CHAR, VAI AUTOMÁTICO DE ACORDO COM O TEXTO
+
+  loop at ti_message into wa_message.
+
+  call function 'MESSAGE_TEXT_BUILD'
+    exporting
+      msgid                     = wa_message-msgid
+      msgnr                     = wa_message-msgnr
+      msgv1                     = wa_message-msgv1
+      msgv2                     = wa_message-msgv2
+   importing
+     message_text_output        = vl_msg.
+
+  write / vl_msg.
+
+  endloop.
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_LOAD_BDCDATA
+*&---------------------------------------------------------------------*
+form f_load_bdcdata using p_x
+                          p_2
+                          p_3.
+  if p_x = 'X'.
+    wa_bdc-program  = p_2.
+    wa_bdc-dynpro   = p_3.
+    wa_bdc-dynbegin = p_x.
+    append wa_bdc to ti_bdc.
+  else.
+
+    wa_bdc-fnam     = p_2.
+    wa_bdc-fval     = p_3.
+    append wa_bdc to ti_bdc.
+  endif.
+
+  clear wa_bdc.
+
+endform.                    " F_LOAD_BDCDATA
+
+form insere_imposto  using p_imp type ty_j1bnfstx
+                                p_index.
+
+  data: lv_ftaxtyp type fnam_____4,
+        lv_ftaxval type fnam_____4,
+        lv_frate   type fnam_____4,
+        lv_fothbas type fnam_____4,
+        lv_fbase   type fnam_____4,
+        lv_fexcbas type fnam_____4,
+        lv_base    type char21,
+        lv_taxval  type char21,
+        lv_excbas  type char21,
+        lv_rate    type char08,
+        lv_othbas  type char21.
+
+  write p_imp-base       to lv_base .
+  write p_imp-rate       to lv_rate .
+  write p_imp-taxval     to lv_taxval .
+  write p_imp-excbas     to lv_excbas .
+  write p_imp-othbas     to lv_othbas .
+
+  REPLACE ALL OCCURRENCES OF '.' IN lv_base WITH ','.
+  REPLACE ALL OCCURRENCES OF '.' IN lv_rate WITH ','.
+  REPLACE ALL OCCURRENCES OF '.' IN lv_taxval WITH ','.
+  REPLACE ALL OCCURRENCES OF '.' IN lv_excbas WITH ','.
+  REPLACE ALL OCCURRENCES OF '.' IN lv_othbas WITH ','.
+
+  concatenate 'J_1BDYSTX-TAXTYP(' p_index ')' into lv_ftaxtyp.
+  concatenate 'J_1BDYSTX-BASE('   p_index ')' into lv_fbase.
+  concatenate 'J_1BDYSTX-RATE('   p_index ')' into lv_frate.
+  concatenate 'J_1BDYSTX-TAXVAL('  p_index ')' into lv_ftaxval.
+  concatenate 'J_1BDYSTX-EXCBAS(' p_index ')' into lv_fexcbas.
+  concatenate 'J_1BDYSTX-OTHBAS(' p_index ')' into lv_fothbas.
+
+  perform f_load_bdcdata using:
+   'X'      'SAPLJ1BB2'             '3000',
+   ' '     lv_ftaxtyp                p_imp-taxtyp,
+   ' '     lv_fbase                  lv_base,
+   ' '     lv_frate                  lv_rate,
+   ' '     lv_ftaxval                lv_taxval,
+   ' '     lv_fexcbas                lv_excbas,
+   ' '     lv_fothbas                lv_othbas.
+
+
+endform.
+
+form finaliza_impostos.
+
+  perform f_load_bdcdata using:
+        ' '     'BDC_OKCODE'          '/00',
+        'X'     'SAPLJ1BB2'           '3000',
+        ' '     'BDC_OKCODE'          '=BACK',
+        'X' 'SAPLJ1BB2'              '2000'.
+
+endform.                    " FINALIZA_IMPOSTOS
