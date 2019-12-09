@@ -23,7 +23,7 @@ TYPES:
         PARVW TYPE j_1bnfdoc-PARVW,
         PARID TYPE j_1bnfdoc-PARID,
         "DOCDAT TYPE j_1bnfdoc-DOCDAT,
-        OBSERVAT TYPE j_1bnfdoc-OBSERVAT,
+        "OBSERVAT TYPE j_1bnfdoc-OBSERVAT,
         "DOCREF TYPE j_1bnfdoc-DOCREF,
         PARVW_TRANSP TYPE j_1bnfdoc-PARVW,
         PARID_TRANSP TYPE j_1bnfdoc-PARID,
@@ -34,6 +34,7 @@ TYPES:
         NTGEW(15) TYPE c,
         BRGEW(15) TYPE c, "j_1bnfdoc-BRGEW,
         GEWEI TYPE j_1bnfdoc-GEWEI,
+        MODFRETE TYPE j_1bnfdoc-modfrete,
      END of ty_j1bnfdoc,
      BEGIN of ty_j1bdylin,
        TP_REG(1) type c,
@@ -57,7 +58,7 @@ TYPES:
        taxlw5  like  j_1bdylin-taxlw5,
        "docref  like  j_1bdylin-docref,
        "itmref  like  j_1bdylin-itmref,
-       cod_cta like  j_1bdylin-cod_cta,
+       "cod_cta like  j_1bdylin-cod_cta,
      end of ty_j1bdylin,
      begin of ty_j1bnfstx,
        TP_REG(1) type c,
@@ -69,11 +70,13 @@ TYPES:
        taxval(20) type  c, "j_1bnfstx-taxval,
        excbas(20) type  c, "j_1bnfstx-excbas,
        othbas(20) type  c, "j_1bnfstx-othbas,
+       COL(3) TYPE c, "Indica a coluna a ser salvo o valor.
      end of ty_j1bnfstx,
      begin of ty_j1bnfftx,
-       TP_REG(1) type c,
-       seqnum   like  j_1bnfftx-seqnum,
-       message  like  j_1bnfftx-message,
+       TP_REG(1)    type c,
+       seqnum       like  j_1bnfftx-seqnum,
+       message      like  j_1bnfftx-message,
+       FILLER(10)   type  c, "para remover as vírgulas restantes.
      end of ty_j1bnfftx.
 
 *Tabela Interna
@@ -98,8 +101,13 @@ DATA it_outdata type standard table of ty_arquivo with header line.
 DATA wa_outdata type ty_arquivo.
 
 SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-t01.
-PARAMETER:      p_file(1024) type c DEFAULT 'C:\Users\sobebe01\Desktop\Solicitação NF Writer\031219 Solicitação NF Writer -CSV03-dez-2019.csv'.
+PARAMETER:        p_file(1024)  type c OBLIGATORY DEFAULT 'C:\Users\sobebe01\Desktop\Solicitação NF Writer\TESTE.csv'.
 SELECTION-SCREEN END OF BLOCK b1.
+
+selection-screen begin of block b2 with frame title text-t02.
+parameters:       p_observ      type j_1bdydoc-observat,
+                  p_ctitem      type j_1bdylin-cod_cta.
+selection-screen end of block b2.
 
 at selection-screen on value-request for p_file.
 
@@ -205,7 +213,7 @@ lv_file = p_file.
         wa_header-PARVW
         wa_header-PARID
         "wa_header-DOCDAT
-        wa_header-OBSERVAT
+        "wa_header-OBSERVAT
         wa_header-PARVW_TRANSP
         wa_header-PARID_TRANSP
         wa_header-INCO1         "Incoterms parte 1
@@ -214,7 +222,8 @@ lv_file = p_file.
         wa_header-SHPUNT        "Meio auxiliar de expedição (espécie)
         wa_header-NTGEW         "Peso líquido
         wa_header-BRGEW         "Peso bruto
-        wa_header-GEWEI.         "Unidade de peso
+        wa_header-GEWEI         "Unidade de peso
+        wa_header-MODFRETE.     "Modalidade do Frete
 
       append wa_header to it_header.
 
@@ -239,8 +248,8 @@ lv_file = p_file.
         wa_item-matuse
         wa_item-nbm
         wa_item-taxlw4
-        wa_item-taxlw5
-        wa_item-cod_cta.
+        wa_item-taxlw5.
+        "wa_item-cod_cta.
 
       append wa_item to it_items.
 
@@ -248,9 +257,13 @@ lv_file = p_file.
 
       split wa_outdata at ',' into
         wa_msg-TP_REG
-        wa_msg-message.
+        wa_msg-message
+        wa_msg-filler.
 
       append wa_msg to it_msgs.
+
+      "Aqui carrega msg em branco.
+      qtd_msgs = qtd_msgs + 1.
 
     ELSEIF tp_reg EQ '4'.     "impostos
 
@@ -263,17 +276,27 @@ lv_file = p_file.
         wa_tax-rate
         wa_tax-taxval
         wa_tax-excbas
-        wa_tax-othbas.
+        wa_tax-othbas
+        wa_tax-col.
 
       append wa_tax to it_taxes.
-
-      qtd_msgs = qtd_msgs + 1.
 
     ENDIF.
 
   endloop.
 
-  "write: / wa_header-PARID.
+  "Verificações dos dados carregados.
+  clear qtd_msgs.
+  LOOP AT it_msgs into wa_msg.
+    IF not wa_msg-message is initial.
+      qtd_msgs = qtd_msgs + 1.
+    ENDIF.
+  ENDLOOP.
+
+  IF qtd_msgs > 9.
+    MESSAGE 'Excedida a qtde. de linhas de mensagem. Até 9 linhas nos dados adicionais da NF.' TYPE 'I'.
+    STOP.
+  ENDIF.
 
   "Carrega os dados mestre.
   perform f_load_bdcdata using:
@@ -288,7 +311,8 @@ lv_file = p_file.
   perform f_load_bdcdata using:
               'X' 'SAPLJ1BB2'   '2000',
               "' ' 'J_1BDYDOC-DOCDAT' wa_header-docdat,
-              ' ' 'J_1BDYDOC-OBSERVAT' wa_header-OBSERVAT,
+              "' ' 'J_1BDYDOC-OBSERVAT' wa_header-OBSERVAT,
+              ' ' 'J_1BDYDOC-OBSERVAT' p_OBSERV,
               ' ' 'BDC_OKCODE'  '=TAB3'.                      "Vai para Parceiros
 
   perform f_load_bdcdata using:
@@ -302,6 +326,18 @@ lv_file = p_file.
   REPLACE ALL OCCURRENCES OF '.' IN wa_header-ntgew WITH ','.
   REPLACE ALL OCCURRENCES OF '.' IN wa_header-brgew WITH ','.
 
+  CONDENSE wa_header-INCO1.
+
+  "SAP
+  "0 - remetente    CIF
+  "1 - destinatário FOB
+
+*  IF wa_header-INCO1 EQ 'CIF'.
+*    MODFRETE = '0'.
+*  ELSE.
+*    MODFRETE = '1'.
+*  ENDIF.
+
   perform f_load_bdcdata using:
               'X' 'SAPLJ1BB2'   '2000',
               ' ' 'J_1BDYDOC-INCO1' wa_header-inco1,
@@ -311,69 +347,92 @@ lv_file = p_file.
               ' ' 'J_1BDYDOC-NTGEW' wa_header-ntgew,  "Peso Líquido
               ' ' 'J_1BDYDOC-BRGEW' wa_header-brgew,  "Peso Bruto
               ' ' 'J_1BDYDOC-GEWEI' wa_header-gewei,  "Unidade de Peso
+              "' ' 'J_1BDYDOC-MODFRETE' wa_header-modfrete,
+              ' ' 'BDC_OKCODE'  '=ENTER'.
+
+  perform f_load_bdcdata using:
+              'X' 'SAPLJ1BB2'   '2000',
+              ' ' 'J_1BDYDOC-MODFRETE' wa_header-modfrete,
               ' ' 'BDC_OKCODE'  '=TAB1'.    "Vai pra Tela Inicial
 
   perform f_load_bdcdata using:
               'X' 'SAPLJ1BB2'   '2000',
               ' ' 'BDC_OKCODE'  '=ADIT'.    "Vai pra Tela Inicial
 
-  "Verifica e flega se todas as taxes tiverem item 0, então o mesmo imposto para todos.
-  DATA wx_TaxesItemZero type i value 0.
-  DATA idx_imp type n value 1.
+  DATA idx_imp type n.
+  DATA curItem type i.
+  DATA qtde type i.
+  DATA qtdeItensValidos type i value 0.
 
-  LOOP AT it_taxes into wa_tax.
-    move wa_tax-item to wx_TaxesItemZero.
+  "Conta qtde de itens válidos.
+  LOOP AT it_items into wa_item.
+    clear qtde.
+    move wa_item-menge to qtde.
+    IF qtde > 0.
+      qtdeitensvalidos = qtdeitensvalidos + 1.
+    ENDIF.
   ENDLOOP.
 
   "Vai para Itens (itens define mensagens automáticas)
   LOOP AT it_items into wa_item.
 
-    REPLACE ALL OCCURRENCES OF '.' IN wa_item-netpr WITH ','.
+    CLEAR idx_imp.
+    idx_imp = 1.
 
-    perform f_load_bdcdata using:
-                'X' 'SAPLJ1BB2'   '3000',
-                ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
-                ' ' 'J_1BDYLIN-MATNR' wa_item-matnr,
-                ' ' 'J_1BDYLIN-WERKS' wa_item-werks,
-                ' ' 'J_1BDYLIN-MAKTX' wa_item-maktx,
-                ' ' 'J_1BDYLIN-MATKL' wa_item-matkl,
-                ' ' 'J_1BDYLIN-MENGE' wa_item-menge,      "Qtde
-                ' ' 'J_1BDYLIN-MEINS' wa_item-meins,      "Unid Med
-                ' ' 'J_1BDYLIN-NETPR' wa_item-netpr,      "Valor Unitário
-                ' ' 'J_1BDYLIN-CFOP' wa_item-cfop,
-                ' ' 'J_1BDYLIN-TAXLW1' wa_item-taxlw1,    "Direitos ICMS
-                ' ' 'J_1BDYLIN-TAXLW2' wa_item-taxlw2,    "Direitos IPI
-                ' ' 'J_1BDYLIN-MATORG' wa_item-matorg,
-                ' ' 'J_1BDYLIN-MATUSE' wa_item-matuse,
-                ' ' 'J_1BDYLIN-NBM' wa_item-nbm,
-                ' ' 'J_1BDYLIN-TAXLW4' wa_item-taxlw4,   "Direitos COFINS
-                ' ' 'J_1BDYLIN-TAXLW5' wa_item-taxlw5,   "Direitos PIS
-                "' ' 'J_1BDYLIN-DOCREF' wa_docref,   "Nr Doc original
-                "' ' 'J_1BDYLIN-ITMREF' wa_itmnum,     "Item Doc Original
-                ' ' 'J_1BDYLIN-COD_CTA' wa_item-cod_cta,
-                ' ' 'BDC_OKCODE'  '=TAX'.
+    "Processa o item apenas se tiver quantidade;
+    clear qtde.
+    move wa_item-menge to qtde.
 
-    LOOP AT it_taxes into wa_tax.
-      IF wa_item-item EQ wa_tax-ITEM.
-        perform insere_imposto  using wa_tax idx_imp.
-        idx_imp = idx_imp + 1.
+    IF qtde > 0.
+
+      curitem = curitem + 1.
+
+      "Troca vírgulas por pontos.
+      REPLACE ALL OCCURRENCES OF '.' IN wa_item-netpr WITH ','.
+
+      perform f_load_bdcdata using:
+                  'X' 'SAPLJ1BB2'   '3000',
+                  ' ' 'J_1BDYLIN-ITMTYP' wa_item-itmtyp,
+                  ' ' 'J_1BDYLIN-MATNR' wa_item-matnr,
+                  ' ' 'J_1BDYLIN-WERKS' wa_item-werks,
+                  ' ' 'J_1BDYLIN-MAKTX' wa_item-maktx,
+                  ' ' 'J_1BDYLIN-MATKL' wa_item-matkl,
+                  ' ' 'J_1BDYLIN-MENGE' wa_item-menge,      "Qtde
+                  ' ' 'J_1BDYLIN-MEINS' wa_item-meins,      "Unid Med
+                  ' ' 'J_1BDYLIN-NETPR' wa_item-netpr,      "Valor Unitário
+                  ' ' 'J_1BDYLIN-CFOP' wa_item-cfop,
+                  ' ' 'J_1BDYLIN-TAXLW1' wa_item-taxlw1,    "Direitos ICMS
+                  ' ' 'J_1BDYLIN-TAXLW2' wa_item-taxlw2,    "Direitos IPI
+                  ' ' 'J_1BDYLIN-MATORG' wa_item-matorg,
+                  ' ' 'J_1BDYLIN-MATUSE' wa_item-matuse,
+                  ' ' 'J_1BDYLIN-NBM' wa_item-nbm,
+                  ' ' 'J_1BDYLIN-TAXLW4' wa_item-taxlw4,    "Direitos COFINS
+                  ' ' 'J_1BDYLIN-TAXLW5' wa_item-taxlw5,    "Direitos PIS
+                  "' ' 'J_1BDYLIN-DOCREF' wa_docref,        "Nr Doc original
+                  "' ' 'J_1BDYLIN-ITMREF' wa_itmnum,        "Item Doc Original
+                  "' ' 'J_1BDYLIN-COD_CTA' wa_item-cod_cta,
+                  ' ' 'J_1BDYLIN-COD_CTA' p_ctitem,         "Cta Analítica Item
+                  ' ' 'BDC_OKCODE'  '=TAX'.
+
+      LOOP AT it_taxes into wa_tax.
+        IF wa_item-item EQ wa_tax-ITEM.
+          perform insere_imposto  using wa_tax idx_imp.
+          idx_imp = idx_imp + 1.
+        ENDIF.
+      ENDLOOP.
+
+      IF curitem NE qtdeitensvalidos.
+        "Adiciona novo item.
+        perform f_load_bdcdata using:
+                    'X' 'SAPLJ1BB2'   '2000',
+                    ' ' 'BDC_OKCODE'  '=ADIT'.
       ENDIF.
-    ENDLOOP.
+
+    ENDIF.
 
   ENDLOOP.
 
-  IF wx_taxesitemzero EQ 0.
-    "O mesmo imposto para todos.
-    LOOP AT it_taxes into wa_tax.
-      perform insere_imposto  using wa_tax idx_imp.
-      idx_imp = idx_imp + 1.
-    ENDLOOP.
-  ENDIF.
-
   "Vai para Mensagens
-
-  DATA fieldmsg type fnam_____4.
-  DATA idx_msg type n value 1.
 
   IF qtd_msgs > 0.
 
@@ -381,25 +440,20 @@ lv_file = p_file.
           ' '     'BDC_OKCODE'          '/00',
           'X'     'SAPLJ1BB2'           '3000',
           ' '     'BDC_OKCODE'          '=BACK',
-          'X'      'SAPLJ1BB2'              '2000',
+          'X'      'SAPLJ1BB2'          '2000',
           ' '     'BDC_OKCODE'          '=TAB4'.
 
+    data idx_msg type n value 0.
+
     loop at it_msgs into wa_msg.
-
-      concatenate 'J_1BDYFTX-MESSAGE(' idx_msg ')' into fieldmsg.
-
-      perform f_load_bdcdata using:
-              'X' 'SAPLJ1BB2'   '2000',
-              ' ' fieldmsg wa_msg-message.
-              "' ' 'BDC_OKCODE'  '/00'.
-
-      idx_msg = idx_msg + 1.
-
+      IF not wa_msg-message is initial.
+        idx_msg = idx_msg + 1.
+        perform insere_mensagem using wa_msg idx_msg.
+      ENDIF.
     endloop.
 
     "vai pro início.
     perform f_load_bdcdata using:
-        ' '     'BDC_OKCODE'          '/00',
         'X'     'SAPLJ1BB2'           '2000',
         ' '     'BDC_OKCODE'          '=TAB1'.
 
@@ -460,6 +514,19 @@ form f_load_bdcdata using p_x
 
 endform.                    " F_LOAD_BDCDATA
 
+form insere_mensagem  using p_msg type ty_j1bnfftx
+                                p_index.
+
+  data: lv_message type char21.
+
+  concatenate 'J_1BDYFTX-MESSAGE(' p_index ')' into lv_message.
+
+  perform f_load_bdcdata using:
+          'X' 'SAPLJ1BB2'   '2000',
+          ' ' lv_message p_msg-message.
+
+endform.
+
 form insere_imposto  using p_imp type ty_j1bnfstx
                                 p_index.
 
@@ -494,15 +561,30 @@ form insere_imposto  using p_imp type ty_j1bnfstx
   concatenate 'J_1BDYSTX-EXCBAS(' p_index ')' into lv_fexcbas.
   concatenate 'J_1BDYSTX-OTHBAS(' p_index ')' into lv_fothbas.
 
-  perform f_load_bdcdata using:
-   'X'      'SAPLJ1BB2'             '3000',
-   ' '     lv_ftaxtyp                p_imp-taxtyp,
-   ' '     lv_fbase                  lv_base,
-   ' '     lv_frate                  lv_rate,
-   ' '     lv_ftaxval                lv_taxval,
-   ' '     lv_fexcbas                lv_excbas,
-   ' '     lv_fothbas                lv_othbas.
+  IF p_index EQ 4.
 
+    perform f_load_bdcdata using:
+     'X'      'SAPLJ1BB2'             '3000',
+     ' '     lv_ftaxtyp                p_imp-taxtyp,
+     ' '     lv_fbase                  lv_base,
+     ' '     lv_frate                  lv_rate,
+     ' '     lv_ftaxval                lv_taxval,
+     ' '     lv_fexcbas                lv_excbas,
+     ' '     lv_fothbas                lv_othbas,
+     ' '     'BDC_OKCODE'          '=TAB1'.
+
+  ELSE.
+
+    perform f_load_bdcdata using:
+     'X'      'SAPLJ1BB2'             '3000',
+     ' '     lv_ftaxtyp                p_imp-taxtyp,
+     ' '     lv_fbase                  lv_base,
+     ' '     lv_frate                  lv_rate,
+     ' '     lv_ftaxval                lv_taxval,
+     ' '     lv_fexcbas                lv_excbas,
+     ' '     lv_fothbas                lv_othbas.
+
+  ENDIF.
 
 endform.
 
@@ -514,4 +596,4 @@ form finaliza_impostos.
         ' '     'BDC_OKCODE'          '=BACK',
         'X' 'SAPLJ1BB2'              '2000'.
 
-endform.                    " FINALIZA_IMPOSTOS
+endform.
