@@ -1,0 +1,487 @@
+*&---------------------------------------------------------------------*
+*& Report  Z_J1B1_IMPORTA_NF_EGR
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT Z_J1B1_IMPORTA_NF_EGR.
+
+tables: j_1bnfdoc, j_1bnflin, /xegr/txmlk.
+
+types:
+*      begin of ty_header,
+*        branch        like j_1bnfdoc-branch,  " Local de negócios
+*        bukrs         like j_1bnfdoc-bukrs,   " Empresa
+*        docnum        like j_1bnfdoc-docnum,
+*        nfenum        like j_1bnfdoc-nfenum,    "Nr NF-e
+*        docdat        like j_1bnfdoc-docdat,
+*        observat      like j_1bnfdoc-observat,
+*        nftype        like j_1bnfdoc-nftype,
+*        parid         like j_1bnfdoc-parid,
+*        parvw         like j_1bnfdoc-parvw,
+*        inco1         like j_1bnfdoc-inco1,
+*        inco2         like j_1bnfdoc-inco2,
+*        anzpk         like j_1bnfdoc-anzpk,
+*        shpunt        like j_1bnfdoc-shpunt,
+*        ntgew         like j_1bnfdoc-ntgew,
+*        brgew         like j_1bnfdoc-brgew,
+*        gewei         like j_1bnfdoc-gewei,
+*      end of ty_header,
+      begin of ty_itens,
+        itmnum  like  j_1bdylin-itmnum,
+        itmtyp  like  j_1bdylin-itmtyp,
+        matnr   like  j_1bdylin-matnr,
+        werks   like  j_1bdylin-werks,
+        maktx   like  j_1bdylin-maktx,
+        matkl   like  j_1bdylin-matkl,
+        menge   like  j_1bdylin-menge,
+        meins   like  j_1bdylin-meins,
+        netpr   like  j_1bdylin-netpr,
+        netwr   like  j_1bdylin-netwr,
+        cfop    like  j_1bdylin-cfop,
+        taxlw1  like  j_1bdylin-taxlw1,
+        taxlw2  like  j_1bdylin-taxlw2,
+        matorg  like  j_1bdylin-matorg,
+        matuse  like  j_1bdylin-matuse,
+        nbm     like  j_1bdylin-nbm,
+        taxlw4  like  j_1bdylin-taxlw4,
+        taxlw5  like  j_1bdylin-taxlw5,
+        docref  like  j_1bdylin-docref,
+        itmref  like  j_1bdylin-itmref,
+        cod_cta like  j_1bdylin-cod_cta,
+     end of ty_itens,
+     begin of ty_j1bnfstx,
+       "tp_reg(1) type c,
+       "item(3) type c,
+       "itmnum   like  j_1bnfstx-itmnum,
+       taxtyp     like  j_1bnfstx-taxtyp,
+       base(20)   type  c, "j_1bnfstx-base,
+       rate(20)   type  c, "j_1bnfstx-rate,
+       taxval(20) type  c, "j_1bnfstx-taxval,
+       excbas(20) type  c, "j_1bnfstx-excbas,
+       othbas(20) type  c, "j_1bnfstx-othbas,
+       "col(3) type c, "Indica a coluna a ser salvo o valor.
+     end of ty_j1bnfstx.
+
+types: begin of ty_saida,
+        bukrs     type  /xegr/txmlk-bukrs,        "Empresa
+        branch    type  /xegr/txmlk-branch,       " FILIAL
+        demi      type  /xegr/txmlk-demi,         " DT Emissão
+        dtemi     type  char10,                   " DT Emisão (formato data)
+        partyp    type  /xegr/txmlk-partyp,       " Tp Parc
+        lifnr     type  /xegr/txmlk-lifnr,        " Cod Emitente
+        name1     type  /xegr/txmlk-name1,        " Raz Social
+        uf        type  /xegr/wegr9002-uf,        " UF
+        "model     type  /xegr/txmlk-model,        " MODELO (57)
+        nfenum    type  /xegr/txmlk-nfenum,       " Nº NF/NF-e NFe
+        id        type  /xegr/txmlk-id,           "ID
+        serie     type  /xegr/txmlk-serie,        " Ser
+        nitem     type  char10, "/xegr/wegr9004-nitem,     " Item NF
+        cprod     type  /xegr/wegr9004-cprod,     " Codigo Produto fornecedor
+        xprod     type  /xegr/wegr9004-xprod,     " Descrição
+        cfop      type  /xegr/wegr9004-cfop,      " Cfop
+        ncm       type  /xegr/wegr9004-ncm,       " Nbm/NCM
+        qcom      type  /xegr/wegr9004-qcom,      " Qtde NF
+        ucom      type  /xegr/wegr9004-ucom,      " Und
+        vuncom    type  /xegr/wegr9004-vuncom,      " Und
+        "vprod     type  /xegr/wegr9004-vprod,     " Vl Liquido
+        "vnf       type  /xegr/wegr9005-vnf,       " Vl Contábil
+        modfrete  type  /xegr/wegr9006-modfrete,
+        placa     type  /xegr/wegr9006-placa,
+        especie   type  /xegr/wegr9006v-esp,
+        nvol      type  /xegr/wegr9006v-nvol,
+        pesob     type  /xegr/wegr9006v-pesob,
+        pesol     type  /xegr/wegr9006v-pesol,
+        qvol      type  /xegr/wegr9006v-qvol,
+
+        "xped      type  /xegr/wegr9004-xped,      " Pedido de compra
+        "nitemped  type  /xegr/wegr9004-nitemped,  " Item do pedido compra
+        "ekgrp     type  char025,                  " Grp Compradores
+        "infadi    type  /xegr/wegr9008v-infcpl,   " Informações Adicionais
+        "statxt    type char40,                    " Situação da Manifestação do Destinatário
+        dummy(1)   type c,
+       end of ty_saida.
+
+data:
+      gw_wnfetab_orig type /xegr/wnfetab,
+      go_nfexml       type ref to /xegr/clegrnfexml.
+
+data: ls_w_wnfeitem   like /xegr/wegr9004,
+      ls_w_wnfevol    like /xegr/wegr9006v.
+
+*Tabela Interna
+data: ti_bdc      type table of bdcdata,
+      ti_message  type table of bdcmsgcoll.
+
+*Work Area
+data: wa_bdc      type bdcdata,
+      wa_params   type ctu_params,
+      wa_message  type bdcmsgcoll.
+
+data: wa_saida  type ty_saida.
+
+data:
+      "wx_docdat(10)   type c,
+      wx_nfenum(9)     type c,
+      "wx_nftype(2)    type c,
+      "wx_parid(10)    type c,
+      "wx_parvw(2)     type c,
+      wx_inco1        like j_1bnfdoc-inco1,
+      wx_anzpk(5)     type n,
+      wx_ntgew(15)    type c,
+      wx_brgew(15)    type c,
+      wx_traid(20)    type c.
+      "wx_shpunt(3)    type c.
+
+data:
+      wx_menge(16)    type n,
+      wx_netpr(16)    type n,
+      wx_cstpis(3)    type c,
+      wx_cstcofins(3) type c.
+
+
+data:
+      wx_qtdeItens    type i value 0,
+      wx_idxItem      type i value 1,
+      wx_nextCode(10) type c.
+
+
+selection-screen begin of block b1 with frame title text-t01.
+parameter:        p_chave     type /xegr/txmlk-id OBLIGATORY.
+selection-screen end of block b1.
+
+selection-screen begin of block b3 with frame title text-t03.
+parameters:       "p_docdat      type j_1bdydoc-docdat OBLIGATORY,
+                  p_nftype      type j_1bnfdoc-nftype default 'I6' OBLIGATORY,  "Categoria NF
+                  p_parid       type j_1bnfdoc-parid default '93740',
+                  p_parvw       type j_1bnfdoc-parvw,
+                  p_observ      type j_1bdydoc-observat.
+selection-screen end of block b3.
+
+selection-screen begin of block b2 with frame title text-t02.
+parameters:       p_cfop        type j_1bdylin-cfop,                    "Novo CFOP
+                  p_matkl       type j_1bdylin-matkl,
+                  p_matuse      type j_1bdylin-matuse.
+                  "p_taxlw1      type j_1bdylin-taxlw1 OBLIGATORY,       "Direito ICMS
+                  "p_taxlw2      type j_1bdylin-taxlw2 OBLIGATORY,       "Direito IPI
+                  "p_taxlw5      type j_1bdylin-taxlw5 OBLIGATORY,    "Direito PIS
+                  "p_taxlw4      type j_1bdylin-taxlw4 OBLIGATORY.    "Direito Cofins
+selection-screen end of block b2.
+
+start-of-selection.
+
+*-->(Load XML Data)
+create object go_nfexml.
+clear: gw_wnfetab_orig.
+gw_wnfetab_orig = go_nfexml->get_xmltab( i_id = p_chave ).
+
+if not gw_wnfetab_orig is initial.
+  wa_saida-bukrs   = gw_wnfetab_orig-wegrxmlk-bukrs.
+  wa_saida-branch  = gw_wnfetab_orig-wegrxmlk-branch.
+  wa_saida-demi    = gw_wnfetab_orig-wegrxmlk-demi.
+  wa_saida-id      = p_chave.
+  wa_saida-partyp  = gw_wnfetab_orig-wegrxmlk-partyp.   "Tipo Parceiro
+  wa_saida-lifnr   = gw_wnfetab_orig-wegrxmlk-lifnr.    "ID Parceiro
+  wa_saida-name1   = gw_wnfetab_orig-wegrxmlk-name1.
+  "wa_saida-model   = gw_wnfetab_orig-wegrxmlk-model.
+  wa_saida-nfenum  = gw_wnfetab_orig-wegrxmlk-nfenum.
+  wa_saida-serie   = gw_wnfetab_orig-wegrxmlk-serie.
+  wa_saida-modfrete = gw_wnfetab_orig-wegr9006-modfrete.
+  wa_saida-placa = gw_wnfetab_orig-wegr9006-placa.
+  "wa_saida-dummy   = ' '.
+
+  concatenate gw_wnfetab_orig-wegrxmlk-demi+6(02) '.'
+              gw_wnfetab_orig-wegrxmlk-demi+4(02) '.'
+              gw_wnfetab_orig-wegrxmlk-demi+0(04) into wa_saida-dtemi.
+
+  write wa_saida-nfenum+6(9) to wx_nfenum NO-ZERO.
+
+endif.
+
+if sy-subrc ne 0.
+  message 'NF não encontrada com esta chave de acesso.' type 'I'.
+  stop.
+endif.
+
+* ************************
+*      HEADER DA NF
+* ************************
+
+IF wa_saida-partyp is not initial.
+  IF wa_saida-partyp EQ 'V'.  "Fornecedor
+    p_parvw = 'LF'.
+  ELSE.
+    p_parvw = 'AG'.
+  ENDIF.
+ELSE.
+    "p_parvw = 'XX'.
+    p_parvw = 'LF'.
+ENDIF.
+
+IF p_parid is not initial.
+  wa_saida-lifnr = p_parid.
+ENDIF.
+
+* TELA INICIAL
+perform f_load_bdcdata using:
+            'X' 'SAPMJ1B1'   '0900',
+            ' ' 'J_1BDYDOC-NFTYPE' p_nftype,
+            ' ' 'J_1BDYDOC-BUKRS'  wa_saida-bukrs,        "Empresa
+            ' ' 'J_1BDYDOC-BRANCH' wa_saida-branch,       "Local de negócios
+            ' ' 'J_1BDYDOC-PARVW'  p_parvw,
+            ' ' 'J_1BDYDOC-PARID'  wa_saida-lifnr,
+            ' ' 'J_1BDYLIN-INCLTX' 'X'.
+
+perform f_load_bdcdata using:
+            'X' 'SAPLJ1BB2'   '2000',
+            ' ' 'J_1BDYDOC-NFENUM' wx_nfenum,
+            ' ' 'J_1BDYDOC-DOCDAT' wa_saida-dtemi,
+            ' ' 'J_1BDYDOC-SERIES' wa_saida-serie,
+            "' ' 'J_1BDYDOC-OBSERVAT' p_observ,
+            "' ' 'J_1BDYDOC-DOCREF'  wa_header-docnum,
+            ' ' 'BDC_OKCODE'  '=TAB5'.    "Vai para Transporte
+
+* Não necessário salvar o Parceiro SP pois o EGR não salva o transportador na J1B1N.
+*perform f_load_bdcdata using:
+*          'X' 'SAPLJ1BB2'   '2000',
+*          ' ' 'J_1BDYNAD-PARVW(01)' p_parvw,
+*          ' ' 'J_1BDYNAD-PARID(01)' p_parid,
+*          ' ' 'J_1BDYNAD-PARVW(02)' 'SP',
+*          ' ' 'J_1BDYNAD-PARID(02)' p_parid1, "Parid do Transportador
+*          ' ' 'BDC_OKCODE'  wx_nextcode.
+
+wx_inco1 = 'SSS'.
+IF wa_saida-modfrete is not initial.
+  IF wa_saida-modfrete EQ 0.
+    wx_inco1 = 'CIF'.
+  ELSEIF wa_saida-modfrete EQ 1.
+    wx_inco1 = 'FOB'.
+  ENDIF.
+ENDIF.
+
+LOOP AT gw_wnfetab_orig-w_wnfevol into ls_w_wnfevol.
+
+  wa_saida-especie = ls_w_wnfevol-esp.
+  wa_saida-nvol = ls_w_wnfevol-nvol.
+  wa_saida-qvol = ls_w_wnfevol-qvol.
+  wa_saida-pesob = ls_w_wnfevol-pesob.
+  wa_saida-pesol = ls_w_wnfevol-pesol.
+
+  CONDENSE wa_saida-especie.
+
+  write wa_saida-qvol+10(5) to wx_anzpk.
+  write wa_saida-pesol to wx_ntgew no-zero.
+  write wa_saida-pesob to wx_brgew no-zero.
+
+ENDLOOP.
+
+* Transporte
+perform f_load_bdcdata using:
+            'X' 'SAPLJ1BB2'   '2000',
+            ' ' 'J_1BDYDOC-INCO1' wx_inco1,
+            ' ' 'J_1BDYDOC-INCO2' wx_inco1,
+            ' ' 'J_1BDYDOC-TRAID' wa_saida-placa,
+            ' ' 'J_1BDYDOC-ANZPK' wx_anzpk,   "Qtde
+            "' ' 'J_1BDYDOC-SHPUNT' 'PC',  "Volume
+            ' ' 'J_1BDYDOC-SHPNUM' wa_saida-especie,  "Volume
+            ' ' 'J_1BDYDOC-NTGEW' wx_ntgew,  "Peso Líquido
+            ' ' 'J_1BDYDOC-BRGEW' wx_brgew,  "Peso Bruto
+            "' ' 'J_1BDYDOC-GEWEI' 'KG',  "Unidade de Peso
+            ' ' 'BDC_OKCODE'  '=TAB1'.    "Vai pra Tela Inicial
+
+PERFORM f_load_bdcdata USING:
+            'X' 'SAPLJ1BB2'   '2000',
+            ' ' 'BDC_OKCODE'  '=ADIT'.
+
+* ************************
+*      ITENS DA NF
+* ************************
+
+*Conta a Qtde.
+loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
+  wx_qtdeitens = wx_qtdeitens + 1.
+ENDLOOP.
+
+loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
+
+  pack ls_w_wnfeitem-nitem to wa_saida-nitem.
+
+  wa_saida-cprod     = ls_w_wnfeitem-cprod.
+  wa_saida-xprod     = ls_w_wnfeitem-xprod.
+  wa_saida-cfop      = ls_w_wnfeitem-cfop.
+  wa_saida-ncm       = ls_w_wnfeitem-ncm.
+  wa_saida-qcom      = ls_w_wnfeitem-qcom.
+  wa_saida-ucom      = ls_w_wnfeitem-ucom.
+  wa_saida-vuncom     = ls_w_wnfeitem-vuncom.
+  "wa_saida-vprod     = ls_w_wnfeitem-vprod.
+  "wa_saida-xped      = ls_w_wnfeitem-xped.
+  "wa_saida-nitemped  = ls_w_wnfeitem-nitemped.
+  "wa_saida-vnf       = gw_wnfetab_orig-wegr9005-vnf.
+
+  move wa_saida-qcom to wx_menge.
+  move wa_saida-vuncom to wx_netpr.
+
+  concatenate 'P' ls_w_wnfeitem-cstpis into wx_cstpis.
+  concatenate 'C' ls_w_wnfeitem-cstcofins into wx_cstcofins.
+
+  IF p_cfop is initial.
+    "Lê do xml.
+    concatenate wa_saida-cfop 'AA' into p_cfop.
+  ENDIF.
+
+  "Verifica se está no último item.
+  wx_nextCode = '=ADIT'.
+  IF wx_idxitem eq wx_qtdeitens.
+    wx_nextCode = 'TAB1'.
+  ENDIF.
+
+  perform f_load_bdcdata using:
+                'X' 'SAPLJ1BB2'   '3000',
+                ' ' 'J_1BDYLIN-ITMTYP' '1',
+                "' ' 'J_1BDYLIN-MATNR' wa_saida-cprod,
+                "' ' 'J_1BDYLIN-WERKS' wa_item-werks,
+                ' ' 'J_1BDYLIN-MAKTX' wa_saida-xprod,
+                ' ' 'J_1BDYLIN-MATKL' p_matkl,
+                ' ' 'J_1BDYLIN-MENGE' wx_menge,           "Qtde
+                ' ' 'J_1BDYLIN-MEINS' wa_saida-ucom,           "UnidMed
+                ' ' 'J_1BDYLIN-NETPR' wx_netpr,           "Preço Líquido
+                ' ' 'J_1BDYLIN-CFOP' p_cfop,
+                ' ' 'J_1BDYLIN-TAXLW1' ls_w_wnfeitem-csticms,    "Direitos ICMS
+                ' ' 'J_1BDYLIN-TAXLW2' ls_w_wnfeitem-cstipi,    "Direitos IPI
+                ' ' 'J_1BDYLIN-MATORG' ls_w_wnfeitem-orig,
+                ' ' 'J_1BDYLIN-MATUSE' p_matuse,
+                ' ' 'J_1BDYLIN-NBM' wa_saida-ncm,
+                ' ' 'J_1BDYLIN-TAXLW4' wx_cstcofins,   "Direitos COFINS
+                ' ' 'J_1BDYLIN-TAXLW5' wx_cstpis,   "Direitos PIS
+                "' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
+                ' ' 'BDC_OKCODE'  WX_NEXTCODE.
+
+  wa_saida-uf = gw_wnfetab_orig-wegr9002-uf.
+
+  clear ls_w_wnfeitem.
+
+  wx_idxitem = wx_idxitem + 1.
+
+endloop.
+
+"AUTHCOD
+
+* MENSAGENS
+* EGR Não carrega mensagens de dados adicionais da NF.
+
+*PERFORM f_load_bdcdata USING:
+*            'X' 'SAPLJ1BB2'   '2000',
+*            ' ' 'BDC_OKCODE'  '=SAVE'.
+
+wa_params-dismode  = 'A'. " ( A - Visivel N - Background )
+wa_params-racommit = 'X'.
+
+call transaction 'J1B1N'
+           using ti_bdc
+            mode 'E'   "Errors only
+    "OPTIONS FROM wa_params
+   messages into ti_message. "Retorno do sucesso ou fracasso do batch input.
+
+"Message 'Cópia da NF concluída. CONFIRME OS DADOS ANTES DE SALVAR!!!' type 'S' DISPLAY LIKE 'E'.
+
+data vl_msg type string. "STRING É IGUAL CHAR, VAI AUTOMÁTICO DE ACORDO COM O TEXTO
+
+loop at ti_message into wa_message.
+
+call function 'MESSAGE_TEXT_BUILD'
+  exporting
+    msgid                     = wa_message-msgid
+    msgnr                     = wa_message-msgnr
+    msgv1                     = wa_message-msgv1
+    msgv2                     = wa_message-msgv2
+ importing
+   message_text_output        = vl_msg.
+
+write / vl_msg.
+
+endloop.
+
+*&---------------------------------------------------------------------*
+*&      Form  F_LOAD_BDCDATA
+*&---------------------------------------------------------------------*
+form f_load_bdcdata using p_x
+                          p_2
+                          p_3.
+  if p_x = 'X'.
+    wa_bdc-program  = p_2.
+    wa_bdc-dynpro   = p_3.
+    wa_bdc-dynbegin = p_x.
+    append wa_bdc to ti_bdc.
+  else.
+
+    wa_bdc-fnam     = p_2.
+    wa_bdc-fval     = p_3.
+    append wa_bdc to ti_bdc.
+  endif.
+
+  clear wa_bdc.
+
+endform.                    " F_LOAD_BDCDATA
+
+form insere_imposto  using p_imp type ty_j1bnfstx
+                                p_index.
+
+  data: lv_ftaxtyp type fnam_____4,
+        lv_ftaxval type fnam_____4,
+        lv_frate   type fnam_____4,
+        lv_fothbas type fnam_____4,
+        lv_fbase   type fnam_____4,
+        lv_fexcbas type fnam_____4,
+        lv_base    type char21,
+        lv_taxval  type char21,
+        lv_excbas  type char21,
+        lv_rate    type char08,
+        lv_othbas  type char21.
+
+  write p_imp-base       to lv_base .
+  write p_imp-rate       to lv_rate .
+  write p_imp-taxval     to lv_taxval .
+  write p_imp-excbas     to lv_excbas .
+  write p_imp-othbas     to lv_othbas .
+
+  replace all occurrences of '.' in lv_base with ','.
+  replace all occurrences of '.' in lv_rate with ','.
+  replace all occurrences of '.' in lv_taxval with ','.
+  replace all occurrences of '.' in lv_excbas with ','.
+  replace all occurrences of '.' in lv_othbas with ','.
+
+  concatenate 'J_1BDYSTX-TAXTYP(' p_index ')' into lv_ftaxtyp.
+  concatenate 'J_1BDYSTX-BASE('   p_index ')' into lv_fbase.
+  concatenate 'J_1BDYSTX-RATE('   p_index ')' into lv_frate.
+  concatenate 'J_1BDYSTX-TAXVAL('  p_index ')' into lv_ftaxval.
+  concatenate 'J_1BDYSTX-EXCBAS(' p_index ')' into lv_fexcbas.
+  concatenate 'J_1BDYSTX-OTHBAS(' p_index ')' into lv_fothbas.
+
+  if p_index eq 4.
+
+    perform f_load_bdcdata using:
+     'X'      'SAPLJ1BB2'             '3000',
+     ' '     lv_ftaxtyp                p_imp-taxtyp,
+     ' '     lv_fbase                  lv_base,
+     ' '     lv_frate                  lv_rate,
+     ' '     lv_ftaxval                lv_taxval,
+     ' '     lv_fexcbas                lv_excbas,
+     ' '     lv_fothbas                lv_othbas,
+     ' '     'BDC_OKCODE'          '=TAB1'.
+
+  else.
+
+    perform f_load_bdcdata using:
+     'X'      'SAPLJ1BB2'             '3000',
+     ' '     lv_ftaxtyp                p_imp-taxtyp,
+     ' '     lv_fbase                  lv_base,
+     ' '     lv_frate                  lv_rate,
+     ' '     lv_ftaxval                lv_taxval,
+     ' '     lv_fexcbas                lv_excbas,
+     ' '     lv_fothbas                lv_othbas.
+
+  endif.
+
+endform.
