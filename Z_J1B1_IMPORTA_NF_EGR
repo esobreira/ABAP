@@ -1,8 +1,8 @@
 *&---------------------------------------------------------------------*
 *& Report  Z_J1B1_IMPORTA_NF_EGR
-*&
+*& Criado por: Eberton Sobreira, 27/12/2019
 *&---------------------------------------------------------------------*
-*&
+*& Carrega uma chave de Acesso do EGR para a J1B1 via BCD.
 *&
 *&---------------------------------------------------------------------*
 
@@ -11,24 +11,6 @@ REPORT Z_J1B1_IMPORTA_NF_EGR.
 tables: j_1bnfdoc, j_1bnflin, /xegr/txmlk.
 
 types:
-*      begin of ty_header,
-*        branch        like j_1bnfdoc-branch,  " Local de negócios
-*        bukrs         like j_1bnfdoc-bukrs,   " Empresa
-*        docnum        like j_1bnfdoc-docnum,
-*        nfenum        like j_1bnfdoc-nfenum,    "Nr NF-e
-*        docdat        like j_1bnfdoc-docdat,
-*        observat      like j_1bnfdoc-observat,
-*        nftype        like j_1bnfdoc-nftype,
-*        parid         like j_1bnfdoc-parid,
-*        parvw         like j_1bnfdoc-parvw,
-*        inco1         like j_1bnfdoc-inco1,
-*        inco2         like j_1bnfdoc-inco2,
-*        anzpk         like j_1bnfdoc-anzpk,
-*        shpunt        like j_1bnfdoc-shpunt,
-*        ntgew         like j_1bnfdoc-ntgew,
-*        brgew         like j_1bnfdoc-brgew,
-*        gewei         like j_1bnfdoc-gewei,
-*      end of ty_header,
       begin of ty_itens,
         itmnum  like  j_1bdylin-itmnum,
         itmtyp  like  j_1bdylin-itmtyp,
@@ -53,16 +35,14 @@ types:
         cod_cta like  j_1bdylin-cod_cta,
      end of ty_itens,
      begin of ty_j1bnfstx,
-       "tp_reg(1) type c,
-       "item(3) type c,
-       "itmnum   like  j_1bnfstx-itmnum,
-       taxtyp     like  j_1bnfstx-taxtyp,
-       base(20)   type  c, "j_1bnfstx-base,
-       rate(20)   type  c, "j_1bnfstx-rate,
-       taxval(20) type  c, "j_1bnfstx-taxval,
-       excbas(20) type  c, "j_1bnfstx-excbas,
-       othbas(20) type  c, "j_1bnfstx-othbas,
-       "col(3) type c, "Indica a coluna a ser salvo o valor.
+       taxtyp(4)  type  c,
+       base       like  j_1bnfstx-base,
+       rate       like  j_1bnfstx-rate,
+       taxval     like  j_1bnfstx-taxval,
+       excbas     like  j_1bnfstx-excbas,
+       othbas     like  j_1bnfstx-othbas,
+       cst(3)     type  c,
+       total      like  j_1bnfstx-taxval,
      end of ty_j1bnfstx.
 
 types: begin of ty_saida,
@@ -95,13 +75,11 @@ types: begin of ty_saida,
         pesob     type  /xegr/wegr9006v-pesob,
         pesol     type  /xegr/wegr9006v-pesol,
         qvol      type  /xegr/wegr9006v-qvol,
-
         "xped      type  /xegr/wegr9004-xped,      " Pedido de compra
         "nitemped  type  /xegr/wegr9004-nitemped,  " Item do pedido compra
         "ekgrp     type  char025,                  " Grp Compradores
         "infadi    type  /xegr/wegr9008v-infcpl,   " Informações Adicionais
         "statxt    type char40,                    " Situação da Manifestação do Destinatário
-        dummy(1)   type c,
        end of ty_saida.
 
 data:
@@ -136,17 +114,15 @@ data:
       "wx_shpunt(3)    type c.
 
 data:
-      wx_menge(16)    type n,
-      wx_netpr(16)    type n,
+      wx_menge(16)    type c,   "Qtde
+      wx_netpr(16)    type c,   "Preço Unitário/Líquido
       wx_cstpis(3)    type c,
       wx_cstcofins(3) type c.
 
 
 data:
       wx_qtdeItens    type i value 0,
-      wx_idxItem      type i value 1,
-      wx_nextCode(10) type c.
-
+      wx_idxItem      type i value 1.
 
 selection-screen begin of block b1 with frame title text-t01.
 parameter:        p_chave     type /xegr/txmlk-id OBLIGATORY.
@@ -163,11 +139,11 @@ selection-screen end of block b3.
 selection-screen begin of block b2 with frame title text-t02.
 parameters:       p_cfop        type j_1bdylin-cfop,                    "Novo CFOP
                   p_matkl       type j_1bdylin-matkl,
-                  p_matuse      type j_1bdylin-matuse.
-                  "p_taxlw1      type j_1bdylin-taxlw1 OBLIGATORY,       "Direito ICMS
-                  "p_taxlw2      type j_1bdylin-taxlw2 OBLIGATORY,       "Direito IPI
-                  "p_taxlw5      type j_1bdylin-taxlw5 OBLIGATORY,    "Direito PIS
-                  "p_taxlw4      type j_1bdylin-taxlw4 OBLIGATORY.    "Direito Cofins
+                  p_matuse      type j_1bdylin-matuse,
+                  p_csticm      type j_1bdylin-taxlw1,        "Direito ICMS
+                  p_cstipi      type j_1bdylin-taxlw2,        "Direito IPI
+                  p_cstpis      type j_1bdylin-taxlw5,        "Direito PIS
+                  p_cstcof      type j_1bdylin-taxlw4.        "Direito Cofins
 selection-screen end of block b2.
 
 start-of-selection.
@@ -190,7 +166,6 @@ if not gw_wnfetab_orig is initial.
   wa_saida-serie   = gw_wnfetab_orig-wegrxmlk-serie.
   wa_saida-modfrete = gw_wnfetab_orig-wegr9006-modfrete.
   wa_saida-placa = gw_wnfetab_orig-wegr9006-placa.
-  "wa_saida-dummy   = ' '.
 
   concatenate gw_wnfetab_orig-wegrxmlk-demi+6(02) '.'
               gw_wnfetab_orig-wegrxmlk-demi+4(02) '.'
@@ -291,6 +266,7 @@ perform f_load_bdcdata using:
             "' ' 'J_1BDYDOC-GEWEI' 'KG',  "Unidade de Peso
             ' ' 'BDC_OKCODE'  '=TAB1'.    "Vai pra Tela Inicial
 
+"Adiciona Itens da NFe
 PERFORM f_load_bdcdata USING:
             'X' 'SAPLJ1BB2'   '2000',
             ' ' 'BDC_OKCODE'  '=ADIT'.
@@ -306,7 +282,7 @@ ENDLOOP.
 
 loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
 
-  pack ls_w_wnfeitem-nitem to wa_saida-nitem.
+  "pack ls_w_wnfeitem-nitem to wa_saida-nitem.
 
   wa_saida-cprod     = ls_w_wnfeitem-cprod.
   wa_saida-xprod     = ls_w_wnfeitem-xprod.
@@ -320,21 +296,26 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
   "wa_saida-nitemped  = ls_w_wnfeitem-nitemped.
   "wa_saida-vnf       = gw_wnfetab_orig-wegr9005-vnf.
 
-  move wa_saida-qcom to wx_menge.
-  move wa_saida-vuncom to wx_netpr.
+  write wa_saida-qcom to wx_menge decimals 2.
 
-  concatenate 'P' ls_w_wnfeitem-cstpis into wx_cstpis.
-  concatenate 'C' ls_w_wnfeitem-cstcofins into wx_cstcofins.
+  write wa_saida-vuncom to wx_netpr decimals 2.
+
+  IF p_cstpis is initial.
+    concatenate 'P' ls_w_wnfeitem-cstpis into wx_cstpis.
+  ELSE.
+    wx_cstpis = p_cstpis.
+  ENDIF.
+  IF p_cstcof is initial.
+    concatenate 'C' ls_w_wnfeitem-cstcofins into wx_cstcofins.
+  ELSE.
+    wx_cstcofins = p_cstcof.
+  ENDIF.
+
+  perform normaliza_string using wa_saida-ucom.
 
   IF p_cfop is initial.
     "Lê do xml.
     concatenate wa_saida-cfop 'AA' into p_cfop.
-  ENDIF.
-
-  "Verifica se está no último item.
-  wx_nextCode = '=ADIT'.
-  IF wx_idxitem eq wx_qtdeitens.
-    wx_nextCode = 'TAB1'.
   ENDIF.
 
   perform f_load_bdcdata using:
@@ -348,25 +329,120 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
                 ' ' 'J_1BDYLIN-MEINS' wa_saida-ucom,           "UnidMed
                 ' ' 'J_1BDYLIN-NETPR' wx_netpr,           "Preço Líquido
                 ' ' 'J_1BDYLIN-CFOP' p_cfop,
-                ' ' 'J_1BDYLIN-TAXLW1' ls_w_wnfeitem-csticms,    "Direitos ICMS
-                ' ' 'J_1BDYLIN-TAXLW2' ls_w_wnfeitem-cstipi,    "Direitos IPI
+                "' ' 'J_1BDYLIN-TAXLW1' ls_w_wnfeitem-csticms,    "Direitos ICMS
+                "' ' 'J_1BDYLIN-TAXLW2' ls_w_wnfeitem-cstipi,    "Direitos IPI
+                ' ' 'J_1BDYLIN-TAXLW1' p_csticm,    "Direitos ICMS
+                ' ' 'J_1BDYLIN-TAXLW2' p_cstipi,    "Direitos IPI
                 ' ' 'J_1BDYLIN-MATORG' ls_w_wnfeitem-orig,
                 ' ' 'J_1BDYLIN-MATUSE' p_matuse,
                 ' ' 'J_1BDYLIN-NBM' wa_saida-ncm,
-                ' ' 'J_1BDYLIN-TAXLW4' wx_cstcofins,   "Direitos COFINS
-                ' ' 'J_1BDYLIN-TAXLW5' wx_cstpis,   "Direitos PIS
+                ' ' 'J_1BDYLIN-TAXLW4' wx_cstcofins,      "Direitos COFINS
+                ' ' 'J_1BDYLIN-TAXLW5' wx_cstpis,         "Direitos PIS
                 "' ' 'J_1BDYLIN-COD_CTA' wx_ctanalit,
-                ' ' 'BDC_OKCODE'  WX_NEXTCODE.
+                "' ' 'BDC_OKCODE'  WX_NEXTCODE.
+                ' ' 'BDC_OKCODE'  '=TAX'.
 
-  wa_saida-uf = gw_wnfetab_orig-wegr9002-uf.
+  "wa_saida-uf = gw_wnfetab_orig-wegr9002-uf.
 
-  clear ls_w_wnfeitem.
+  "* ***************************
+  "*      IMPOSTOS DO ITEM
+  "* ***************************
+
+  "Se valor da BC > 0 e Aliquota > 0, então ICM1
+  "Senão, ICM0
+
+  data:
+        wa_tax_icms type ty_j1bnfstx,
+        wa_tax_ipi type ty_j1bnfstx,
+        wa_tax_pis type ty_j1bnfstx,
+        wa_tax_cofins type ty_j1bnfstx.
+
+  "ICMS
+  move ls_w_wnfeitem-vbcicms to wa_tax_icms-base.
+  move ls_w_wnfeitem-picms to wa_tax_icms-rate.
+  move ls_w_wnfeitem-vicms to wa_tax_icms-taxval.
+  wa_tax_icms-othbas = 0.
+  wa_tax_icms-excbas = 0.
+  wa_tax_icms-cst = p_csticm.
+  move ls_w_wnfeitem-vprod to wa_tax_icms-total.
+  perform insere_imposto USING wa_tax_icms '1'.
+
+  "IPI
+  move ls_w_wnfeitem-vbcipi to wa_tax_ipi-base.
+  move ls_w_wnfeitem-pipi to wa_tax_ipi-rate.
+  move ls_w_wnfeitem-vipi to wa_tax_ipi-taxval.
+  wa_tax_ipi-othbas = 0.
+  wa_tax_ipi-excbas = 0.
+  wa_tax_ipi-cst = p_cstipi.
+  move ls_w_wnfeitem-vprod to wa_tax_ipi-total.
+  perform insere_imposto USING wa_tax_ipi '2'.
+
+  "Pis Cofins C70 e P70, não adiciona as linhas.
+  IF wx_cstpis NE 'P08' OR wx_cstpis NE 'P70' OR wx_cstpis NE 'P99'.
+
+    move ls_w_wnfeitem-vbcpis to wa_tax_pis-base.
+    move ls_w_wnfeitem-ppis to wa_tax_pis-rate.
+    move ls_w_wnfeitem-vpis to wa_tax_pis-taxval.
+    wa_tax_pis-othbas = 0.
+    wa_tax_pis-excbas = 0.
+    wa_tax_pis-cst = wx_cstpis.
+    move ls_w_wnfeitem-vprod to wa_tax_pis-total.
+    perform insere_imposto USING wa_tax_pis '3'.
+
+  ENDIF.
+
+  IF wx_cstcofins NE 'C08' OR wx_cstcofins NE 'C70' OR wx_cstcofins NE 'C99'.
+
+    move ls_w_wnfeitem-vbccofins to wa_tax_cofins-base.
+    move ls_w_wnfeitem-pcofins to wa_tax_cofins-rate.
+    move ls_w_wnfeitem-vcofins to wa_tax_cofins-taxval.
+    wa_tax_cofins-othbas = 0.
+    wa_tax_cofins-excbas = 0.
+    wa_tax_cofins-cst = wx_cstcofins.
+    move ls_w_wnfeitem-vprod to wa_tax_cofins-total.
+    perform insere_imposto USING wa_tax_pis '4'.
+
+  ENDIF.
+
+  perform f_load_bdcdata using:
+          'X' 'SAPLJ1BB2'   '3000',
+          ' ' 'BDC_OKCODE'  '=TAB1'.
+
+  clear wa_tax_icms.
+  clear wa_tax_ipi.
+  clear wa_tax_pis.
+  clear wa_tax_cofins.
+
+  "Verifica se está no último item.
+  IF wx_idxitem EQ wx_qtdeitens.
+    "Adiciona novo item.
+    perform f_load_bdcdata using:
+            'X' 'SAPLJ1BB2'   '2000',
+            ' ' 'BDC_OKCODE'  '=TAB8'.    "Vai para Dados NFe
+  ELSE.
+    perform f_load_bdcdata using:
+            'X' 'SAPLJ1BB2'   '2000',
+            ' ' 'BDC_OKCODE'  '=ADIT'.
+  ENDIF.
 
   wx_idxitem = wx_idxitem + 1.
 
 endloop.
 
-"AUTHCOD
+"Dados NFe
+data:
+      wx_digit8(8) type c,
+      wx_lastdig(1) type c.
+
+wx_digit8 = wa_saida-id+35(8).
+wx_lastdig = wa_saida-id+43(1).
+
+perform f_load_bdcdata using:
+            'X' 'SAPLJ1BB2'   '2000',
+            ' ' 'J_1BDYDOC-AUTHCOD' gw_wnfetab_orig-wegr90xx-nprot,
+            ' ' 'J_1BNFE_DOCNUM9_DIVIDED-DOCNUM8' wx_digit8,
+            ' ' 'J_1BNFE_ACTIVE-CDV' wx_lastdig,
+            ' ' 'BDC_OKCODE'  '=TAB1'.
 
 * MENSAGENS
 * EGR Não carrega mensagens de dados adicionais da NF.
@@ -425,63 +501,180 @@ form f_load_bdcdata using p_x
 
 endform.                    " F_LOAD_BDCDATA
 
-form insere_imposto  using p_imp type ty_j1bnfstx
-                                p_index.
+*&---------------------------------------------------------------------*
+*&      Form  NORMALIZA STRING
+*&      Remove caracteres indevidos de string
+*&---------------------------------------------------------------------*
+form normaliza_string using p_x.
 
-  data: lv_ftaxtyp type fnam_____4,
-        lv_ftaxval type fnam_____4,
-        lv_frate   type fnam_____4,
-        lv_fothbas type fnam_____4,
-        lv_fbase   type fnam_____4,
-        lv_fexcbas type fnam_____4,
+  TRANSLATE p_x TO UPPER CASE.
+
+  REPLACE ALL OCCURRENCES OF 'Ç' in p_x with 'C'.
+
+endform.
+
+form insere_imposto using
+      p_imp type ty_j1bnfstx
+      p_index type c.
+
+  data: lv_ftaxtyp(30) type c,
+        lv_ftaxval(30) type c,
+        lv_frate(30) type c,
+        lv_fothbas(30) type c,
+        lv_fbase(30) type c,
+        lv_fexcbas(30) type c,
         lv_base    type char21,
         lv_taxval  type char21,
         lv_excbas  type char21,
         lv_rate    type char08,
-        lv_othbas  type char21.
+        lv_othbas  type char21,
+        wx_outise type i value 0.
 
-  write p_imp-base       to lv_base .
-  write p_imp-rate       to lv_rate .
-  write p_imp-taxval     to lv_taxval .
-  write p_imp-excbas     to lv_excbas .
-  write p_imp-othbas     to lv_othbas .
+  IF p_index EQ '1'.   "ICMS
 
-  replace all occurrences of '.' in lv_base with ','.
-  replace all occurrences of '.' in lv_rate with ','.
-  replace all occurrences of '.' in lv_taxval with ','.
-  replace all occurrences of '.' in lv_excbas with ','.
-  replace all occurrences of '.' in lv_othbas with ','.
+    "Trata outras.
+    IF p_imp-cst EQ 090.   "Outras
+      p_imp-taxtyp = 'ICM0'.
+      p_imp-base = 0.
+      p_imp-rate = 0.
+      p_imp-taxval = 0.
+      p_imp-othbas = p_imp-total.
+      p_imp-excbas = 0.
+      wx_outise = 1.
+    ENDIF.
 
-  concatenate 'J_1BDYSTX-TAXTYP(' p_index ')' into lv_ftaxtyp.
-  concatenate 'J_1BDYSTX-BASE('   p_index ')' into lv_fbase.
-  concatenate 'J_1BDYSTX-RATE('   p_index ')' into lv_frate.
-  concatenate 'J_1BDYSTX-TAXVAL('  p_index ')' into lv_ftaxval.
-  concatenate 'J_1BDYSTX-EXCBAS(' p_index ')' into lv_fexcbas.
-  concatenate 'J_1BDYSTX-OTHBAS(' p_index ')' into lv_fothbas.
+    "Trata isentas.
+    IF p_imp-cst EQ 040.   "Isentas
+      p_imp-taxtyp = 'ICM0'.
+      p_imp-base = 0.
+      p_imp-rate = 0.
+      p_imp-taxval = 0.
+      p_imp-othbas = 0.
+      p_imp-excbas = p_imp-total.
+      wx_outise = 1.
+    ENDIF.
 
-  if p_index eq 4.
+    IF wx_outise EQ 0.
+      IF p_imp-base > 0 AND p_imp-rate > 0.
+        p_imp-taxtyp = 'ICM1'.    "Com crédito
+      ELSE.
+        p_imp-taxtyp = 'ICM0'.
+        p_imp-base = 0.
+        p_imp-rate = 0.
+        p_imp-taxval = 0.
+        p_imp-othbas = 0.
+        p_imp-excbas = p_imp-total.
+      ENDIF.
+    ENDIF.
 
-    perform f_load_bdcdata using:
-     'X'      'SAPLJ1BB2'             '3000',
-     ' '     lv_ftaxtyp                p_imp-taxtyp,
-     ' '     lv_fbase                  lv_base,
-     ' '     lv_frate                  lv_rate,
-     ' '     lv_ftaxval                lv_taxval,
-     ' '     lv_fexcbas                lv_excbas,
-     ' '     lv_fothbas                lv_othbas,
-     ' '     'BDC_OKCODE'          '=TAB1'.
+  ENDIF.
 
-  else.
+  wx_outise = 0.
 
-    perform f_load_bdcdata using:
-     'X'      'SAPLJ1BB2'             '3000',
-     ' '     lv_ftaxtyp                p_imp-taxtyp,
-     ' '     lv_fbase                  lv_base,
-     ' '     lv_frate                  lv_rate,
-     ' '     lv_ftaxval                lv_taxval,
-     ' '     lv_fexcbas                lv_excbas,
-     ' '     lv_fothbas                lv_othbas.
+  IF p_index EQ '2'.  "IPI
 
-  endif.
+    "Trata outras.
+    IF p_imp-cst EQ 049 OR p_imp-cst EQ 099.   "Outras
+      p_imp-taxtyp = 'IPI0'.
+      p_imp-base = 0.
+      p_imp-rate = 0.
+      p_imp-taxval = 0.
+      p_imp-othbas = p_imp-total.
+      p_imp-excbas = 0.
+      wx_outise = 1.
+    ENDIF.
+
+    "Trata isentas.
+    IF p_imp-cst EQ 002 OR p_imp-cst EQ 052.   "Isentas
+      p_imp-taxtyp = 'IPI0'.
+      p_imp-base = 0.
+      p_imp-rate = 0.
+      p_imp-taxval = 0.
+      p_imp-othbas = 0.
+      p_imp-excbas = p_imp-total.
+      wx_outise = 1.
+    ENDIF.
+
+    IF wx_outise EQ 0.
+      IF p_imp-base > 0 AND p_imp-rate > 0.
+        p_imp-taxtyp = 'IPI1'.  "Com crédito
+      ELSE.
+        p_imp-taxtyp = 'IPI0'.
+        p_imp-base = 0.
+        p_imp-rate = 0.
+        p_imp-taxval = 0.
+        p_imp-othbas = 0.
+        p_imp-excbas = p_imp-total.
+      ENDIF.
+    ENDIF.
+
+  ENDIF.
+
+  IF p_index EQ '3'.  "PIS
+
+    IF p_imp-base > 0 AND p_imp-rate > 0.
+      p_imp-taxtyp = 'IPIS'.
+    ELSE.
+      p_imp-taxtyp = 'ZPI1'.
+    ENDIF.
+
+    "Isentas
+    IF p_imp-cst EQ 'P08' OR p_imp-cst EQ 'P70' OR p_imp-cst EQ 'P99'.
+      p_imp-base = 0.
+      p_imp-rate = 0.
+      p_imp-taxval = 0.
+      p_imp-othbas = 0.
+      p_imp-excbas = p_imp-total.
+    ENDIF.
+
+  ENDIF.
+
+  IF p_index EQ '4'.  "COFINS
+
+    IF p_imp-base > 0 AND p_imp-rate > 0.
+      p_imp-taxtyp = 'ICOF'.
+    ELSE.
+      p_imp-taxtyp = 'ZCO1'.
+    ENDIF.
+
+    "Isentas
+    IF p_imp-cst EQ 'C08' OR p_imp-cst EQ 'C70' OR p_imp-cst EQ 'C99'.
+      p_imp-base = 0.
+      p_imp-rate = 0.
+      p_imp-taxval = 0.
+      p_imp-othbas = 0.
+      p_imp-excbas = p_imp-total.
+    ENDIF.
+
+  ENDIF.
+
+  write p_imp-base       to lv_base decimals 2 .
+  write p_imp-rate       to lv_rate decimals 2.
+  write p_imp-taxval     to lv_taxval decimals 2 .
+  write p_imp-excbas     to lv_excbas decimals 2 .
+  write p_imp-othbas     to lv_othbas decimals 2 .
+
+*  replace all occurrences of '.' in lv_base with ','.
+*  replace all occurrences of '.' in lv_rate with ','.
+*  replace all occurrences of '.' in lv_taxval with ','.
+*  replace all occurrences of '.' in lv_excbas with ','.
+*  replace all occurrences of '.' in lv_othbas with ','.
+
+  concatenate 'J_1BDYSTX-TAXTYP(0' p_index ')' into lv_ftaxtyp.
+  concatenate 'J_1BDYSTX-BASE(0'   p_index ')' into lv_fbase.
+  concatenate 'J_1BDYSTX-RATE(0'   p_index ')' into lv_frate.
+  concatenate 'J_1BDYSTX-TAXVAL(0'  p_index ')' into lv_ftaxval.
+  concatenate 'J_1BDYSTX-EXCBAS(0' p_index ')' into lv_fexcbas.
+  concatenate 'J_1BDYSTX-OTHBAS(0' p_index ')' into lv_fothbas.
+
+  perform f_load_bdcdata using:
+   'X'      'SAPLJ1BB2'             '3000',
+   ' '     lv_ftaxtyp                p_imp-taxtyp,
+   ' '     lv_fbase                  lv_base,
+   ' '     lv_frate                  lv_rate,
+   ' '     lv_ftaxval                lv_taxval,
+   ' '     lv_fexcbas                lv_excbas,
+   ' '     lv_fothbas                lv_othbas.
+   "' '    'BDC_OKCODE'  '=ENTER'.
 
 endform.
