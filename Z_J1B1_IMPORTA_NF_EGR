@@ -6,7 +6,7 @@
 *&
 *&---------------------------------------------------------------------*
 
-REPORT Z_J1B1_IMPORTA_NF_EGR.
+report z_j1b1_importa_nf_egr.
 
 tables: j_1bnfdoc, j_1bnflin, /xegr/txmlk.
 
@@ -119,19 +119,18 @@ data:
       wx_cstpis(3)    type c,
       wx_cstcofins(3) type c.
 
-
 data:
-      wx_qtdeItens    type i value 0,
-      wx_idxItem      type i value 1.
+      wx_qtdeitens    type i value 0,
+      wx_idxitem      type i value 1.
 
 selection-screen begin of block b1 with frame title text-t01.
-parameter:        p_chave     type /xegr/txmlk-id OBLIGATORY.
+parameter:        p_chave     type /xegr/txmlk-id obligatory.
 selection-screen end of block b1.
 
 selection-screen begin of block b3 with frame title text-t03.
 parameters:       "p_docdat      type j_1bdydoc-docdat OBLIGATORY,
-                  p_nftype      type j_1bnfdoc-nftype default 'I6' OBLIGATORY,  "Categoria NF
-                  p_parid       type j_1bnfdoc-parid default '93740',
+                  p_nftype      type j_1bnfdoc-nftype default 'I6' obligatory,  "Categoria NF
+                  p_parid       type j_1bnfdoc-parid, " default '93740',
                   p_parvw       type j_1bnfdoc-parvw,
                   p_observ      type j_1bdydoc-observat.
 selection-screen end of block b3.
@@ -171,7 +170,7 @@ if not gw_wnfetab_orig is initial.
               gw_wnfetab_orig-wegrxmlk-demi+4(02) '.'
               gw_wnfetab_orig-wegrxmlk-demi+0(04) into wa_saida-dtemi.
 
-  write wa_saida-nfenum+6(9) to wx_nfenum NO-ZERO.
+  write wa_saida-nfenum+6(9) to wx_nfenum no-zero.
 
 endif.
 
@@ -184,20 +183,20 @@ endif.
 *      HEADER DA NF
 * ************************
 
-IF wa_saida-partyp is not initial.
-  IF wa_saida-partyp EQ 'V'.  "Fornecedor
+if wa_saida-partyp is not initial.
+  if wa_saida-partyp eq 'V'.  "Fornecedor
     p_parvw = 'LF'.
-  ELSE.
+  else.
     p_parvw = 'AG'.
-  ENDIF.
-ELSE.
+  endif.
+else.
     "p_parvw = 'XX'.
     p_parvw = 'LF'.
-ENDIF.
+endif.
 
-IF p_parid is not initial.
+if p_parid is not initial.
   wa_saida-lifnr = p_parid.
-ENDIF.
+endif.
 
 * TELA INICIAL
 perform f_load_bdcdata using:
@@ -228,15 +227,15 @@ perform f_load_bdcdata using:
 *          ' ' 'BDC_OKCODE'  wx_nextcode.
 
 wx_inco1 = 'SSS'.
-IF wa_saida-modfrete is not initial.
-  IF wa_saida-modfrete EQ 0.
+if wa_saida-modfrete is not initial.
+  if wa_saida-modfrete eq 0.
     wx_inco1 = 'CIF'.
-  ELSEIF wa_saida-modfrete EQ 1.
+  elseif wa_saida-modfrete eq 1.
     wx_inco1 = 'FOB'.
-  ENDIF.
-ENDIF.
+  endif.
+endif.
 
-LOOP AT gw_wnfetab_orig-w_wnfevol into ls_w_wnfevol.
+loop at gw_wnfetab_orig-w_wnfevol into ls_w_wnfevol.
 
   wa_saida-especie = ls_w_wnfevol-esp.
   wa_saida-nvol = ls_w_wnfevol-nvol.
@@ -244,13 +243,13 @@ LOOP AT gw_wnfetab_orig-w_wnfevol into ls_w_wnfevol.
   wa_saida-pesob = ls_w_wnfevol-pesob.
   wa_saida-pesol = ls_w_wnfevol-pesol.
 
-  CONDENSE wa_saida-especie.
+  condense wa_saida-especie.
 
   write wa_saida-qvol+10(5) to wx_anzpk.
   write wa_saida-pesol to wx_ntgew no-zero.
   write wa_saida-pesob to wx_brgew no-zero.
 
-ENDLOOP.
+endloop.
 
 * Transporte
 perform f_load_bdcdata using:
@@ -267,7 +266,7 @@ perform f_load_bdcdata using:
             ' ' 'BDC_OKCODE'  '=TAB1'.    "Vai pra Tela Inicial
 
 "Adiciona Itens da NFe
-PERFORM f_load_bdcdata USING:
+perform f_load_bdcdata using:
             'X' 'SAPLJ1BB2'   '2000',
             ' ' 'BDC_OKCODE'  '=ADIT'.
 
@@ -278,7 +277,7 @@ PERFORM f_load_bdcdata USING:
 *Conta a Qtde.
 loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
   wx_qtdeitens = wx_qtdeitens + 1.
-ENDLOOP.
+endloop.
 
 loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
 
@@ -300,30 +299,45 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
 
   write wa_saida-vuncom to wx_netpr decimals 2.
 
-  IF p_cstpis is initial.
+  if p_cstpis is initial.
     concatenate 'P' ls_w_wnfeitem-cstpis into wx_cstpis.
-  ELSE.
+  else.
     wx_cstpis = p_cstpis.
-  ENDIF.
-  IF p_cstcof is initial.
+  endif.
+  if p_cstcof is initial.
     concatenate 'C' ls_w_wnfeitem-cstcofins into wx_cstcofins.
-  ELSE.
+  else.
     wx_cstcofins = p_cstcof.
-  ENDIF.
+  endif.
 
   perform normaliza_string using wa_saida-ucom.
 
-  IF p_cfop is initial.
+  if p_cfop is initial.
     "Lê do xml.
     concatenate wa_saida-cfop 'AA' into p_cfop.
-  ENDIF.
+  endif.
+
+  "Trunca a descrição do produto
+  data :
+        wx_len type i value 0,
+        wx_prod(40) type c.
+
+  condense wa_saida-xprod.
+
+  wx_len = strlen( wa_saida-xprod ).
+
+  if wx_len > 40.
+    wx_prod = wa_saida-xprod+0(40).
+  else.
+    wx_prod = wa_saida-xprod.
+  endif.
 
   perform f_load_bdcdata using:
                 'X' 'SAPLJ1BB2'   '3000',
                 ' ' 'J_1BDYLIN-ITMTYP' '1',
                 "' ' 'J_1BDYLIN-MATNR' wa_saida-cprod,
                 "' ' 'J_1BDYLIN-WERKS' wa_item-werks,
-                ' ' 'J_1BDYLIN-MAKTX' wa_saida-xprod,
+                ' ' 'J_1BDYLIN-MAKTX' wx_prod,
                 ' ' 'J_1BDYLIN-MATKL' p_matkl,
                 ' ' 'J_1BDYLIN-MENGE' wx_menge,           "Qtde
                 ' ' 'J_1BDYLIN-MEINS' wa_saida-ucom,           "UnidMed
@@ -365,7 +379,7 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
   wa_tax_icms-excbas = 0.
   wa_tax_icms-cst = p_csticm.
   move ls_w_wnfeitem-vprod to wa_tax_icms-total.
-  perform insere_imposto USING wa_tax_icms '1'.
+  perform insere_imposto using wa_tax_icms '1'.
 
   "IPI
   move ls_w_wnfeitem-vbcipi to wa_tax_ipi-base.
@@ -375,10 +389,10 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
   wa_tax_ipi-excbas = 0.
   wa_tax_ipi-cst = p_cstipi.
   move ls_w_wnfeitem-vprod to wa_tax_ipi-total.
-  perform insere_imposto USING wa_tax_ipi '2'.
+  perform insere_imposto using wa_tax_ipi '2'.
 
   "Pis Cofins C70 e P70, não adiciona as linhas.
-  IF wx_cstpis NE 'P08' OR wx_cstpis NE 'P70' OR wx_cstpis NE 'P99'.
+  if wx_cstpis ne 'P08' or wx_cstpis ne 'P70' or wx_cstpis ne 'P99'.
 
     move ls_w_wnfeitem-vbcpis to wa_tax_pis-base.
     move ls_w_wnfeitem-ppis to wa_tax_pis-rate.
@@ -387,11 +401,11 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
     wa_tax_pis-excbas = 0.
     wa_tax_pis-cst = wx_cstpis.
     move ls_w_wnfeitem-vprod to wa_tax_pis-total.
-    perform insere_imposto USING wa_tax_pis '3'.
+    perform insere_imposto using wa_tax_pis '3'.
 
-  ENDIF.
+  endif.
 
-  IF wx_cstcofins NE 'C08' OR wx_cstcofins NE 'C70' OR wx_cstcofins NE 'C99'.
+  if wx_cstcofins ne 'C08' or wx_cstcofins ne 'C70' or wx_cstcofins ne 'C99'.
 
     move ls_w_wnfeitem-vbccofins to wa_tax_cofins-base.
     move ls_w_wnfeitem-pcofins to wa_tax_cofins-rate.
@@ -400,9 +414,9 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
     wa_tax_cofins-excbas = 0.
     wa_tax_cofins-cst = wx_cstcofins.
     move ls_w_wnfeitem-vprod to wa_tax_cofins-total.
-    perform insere_imposto USING wa_tax_pis '4'.
+    perform insere_imposto using wa_tax_pis '4'.
 
-  ENDIF.
+  endif.
 
   perform f_load_bdcdata using:
           'X' 'SAPLJ1BB2'   '3000',
@@ -414,16 +428,16 @@ loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
   clear wa_tax_cofins.
 
   "Verifica se está no último item.
-  IF wx_idxitem EQ wx_qtdeitens.
+  if wx_idxitem eq wx_qtdeitens.
     "Adiciona novo item.
     perform f_load_bdcdata using:
             'X' 'SAPLJ1BB2'   '2000',
             ' ' 'BDC_OKCODE'  '=TAB8'.    "Vai para Dados NFe
-  ELSE.
+  else.
     perform f_load_bdcdata using:
             'X' 'SAPLJ1BB2'   '2000',
             ' ' 'BDC_OKCODE'  '=ADIT'.
-  ENDIF.
+  endif.
 
   wx_idxitem = wx_idxitem + 1.
 
@@ -507,9 +521,9 @@ endform.                    " F_LOAD_BDCDATA
 *&---------------------------------------------------------------------*
 form normaliza_string using p_x.
 
-  TRANSLATE p_x TO UPPER CASE.
+  translate p_x to upper case.
 
-  REPLACE ALL OCCURRENCES OF 'Ç' in p_x with 'C'.
+  replace all occurrences of 'Ç' in p_x with 'C'.
 
 endform.
 
@@ -530,10 +544,10 @@ form insere_imposto using
         lv_othbas  type char21,
         wx_outise type i value 0.
 
-  IF p_index EQ '1'.   "ICMS
+  if p_index eq '1'.   "ICMS
 
     "Trata outras.
-    IF p_imp-cst EQ 090.   "Outras
+    if p_imp-cst eq 090.   "Outras
       p_imp-taxtyp = 'ICM0'.
       p_imp-base = 0.
       p_imp-rate = 0.
@@ -541,10 +555,10 @@ form insere_imposto using
       p_imp-othbas = p_imp-total.
       p_imp-excbas = 0.
       wx_outise = 1.
-    ENDIF.
+    endif.
 
     "Trata isentas.
-    IF p_imp-cst EQ 040.   "Isentas
+    if p_imp-cst eq 040.   "Isentas
       p_imp-taxtyp = 'ICM0'.
       p_imp-base = 0.
       p_imp-rate = 0.
@@ -552,29 +566,29 @@ form insere_imposto using
       p_imp-othbas = 0.
       p_imp-excbas = p_imp-total.
       wx_outise = 1.
-    ENDIF.
+    endif.
 
-    IF wx_outise EQ 0.
-      IF p_imp-base > 0 AND p_imp-rate > 0.
+    if wx_outise eq 0.
+      if p_imp-base > 0 and p_imp-rate > 0.
         p_imp-taxtyp = 'ICM1'.    "Com crédito
-      ELSE.
+      else.
         p_imp-taxtyp = 'ICM0'.
         p_imp-base = 0.
         p_imp-rate = 0.
         p_imp-taxval = 0.
         p_imp-othbas = 0.
         p_imp-excbas = p_imp-total.
-      ENDIF.
-    ENDIF.
+      endif.
+    endif.
 
-  ENDIF.
+  endif.
 
   wx_outise = 0.
 
-  IF p_index EQ '2'.  "IPI
+  if p_index eq '2'.  "IPI
 
     "Trata outras.
-    IF p_imp-cst EQ 049 OR p_imp-cst EQ 099.   "Outras
+    if p_imp-cst eq 049 or p_imp-cst eq 099.   "Outras
       p_imp-taxtyp = 'IPI0'.
       p_imp-base = 0.
       p_imp-rate = 0.
@@ -582,10 +596,10 @@ form insere_imposto using
       p_imp-othbas = p_imp-total.
       p_imp-excbas = 0.
       wx_outise = 1.
-    ENDIF.
+    endif.
 
     "Trata isentas.
-    IF p_imp-cst EQ 002 OR p_imp-cst EQ 052.   "Isentas
+    if p_imp-cst eq 002 or p_imp-cst eq 052.   "Isentas
       p_imp-taxtyp = 'IPI0'.
       p_imp-base = 0.
       p_imp-rate = 0.
@@ -593,60 +607,60 @@ form insere_imposto using
       p_imp-othbas = 0.
       p_imp-excbas = p_imp-total.
       wx_outise = 1.
-    ENDIF.
+    endif.
 
-    IF wx_outise EQ 0.
-      IF p_imp-base > 0 AND p_imp-rate > 0.
+    if wx_outise eq 0.
+      if p_imp-base > 0 and p_imp-rate > 0.
         p_imp-taxtyp = 'IPI1'.  "Com crédito
-      ELSE.
+      else.
         p_imp-taxtyp = 'IPI0'.
         p_imp-base = 0.
         p_imp-rate = 0.
         p_imp-taxval = 0.
         p_imp-othbas = 0.
         p_imp-excbas = p_imp-total.
-      ENDIF.
-    ENDIF.
+      endif.
+    endif.
 
-  ENDIF.
+  endif.
 
-  IF p_index EQ '3'.  "PIS
+  if p_index eq '3'.  "PIS
 
-    IF p_imp-base > 0 AND p_imp-rate > 0.
+    if p_imp-base > 0 and p_imp-rate > 0.
       p_imp-taxtyp = 'IPIS'.
-    ELSE.
+    else.
       p_imp-taxtyp = 'ZPI1'.
-    ENDIF.
+    endif.
 
     "Isentas
-    IF p_imp-cst EQ 'P08' OR p_imp-cst EQ 'P70' OR p_imp-cst EQ 'P99'.
+    if p_imp-cst eq 'P08' or p_imp-cst eq 'P70' or p_imp-cst eq 'P99'.
       p_imp-base = 0.
       p_imp-rate = 0.
       p_imp-taxval = 0.
       p_imp-othbas = 0.
       p_imp-excbas = p_imp-total.
-    ENDIF.
+    endif.
 
-  ENDIF.
+  endif.
 
-  IF p_index EQ '4'.  "COFINS
+  if p_index eq '4'.  "COFINS
 
-    IF p_imp-base > 0 AND p_imp-rate > 0.
+    if p_imp-base > 0 and p_imp-rate > 0.
       p_imp-taxtyp = 'ICOF'.
-    ELSE.
+    else.
       p_imp-taxtyp = 'ZCO1'.
-    ENDIF.
+    endif.
 
     "Isentas
-    IF p_imp-cst EQ 'C08' OR p_imp-cst EQ 'C70' OR p_imp-cst EQ 'C99'.
+    if p_imp-cst eq 'C08' or p_imp-cst eq 'C70' or p_imp-cst eq 'C99'.
       p_imp-base = 0.
       p_imp-rate = 0.
       p_imp-taxval = 0.
       p_imp-othbas = 0.
       p_imp-excbas = p_imp-total.
-    ENDIF.
+    endif.
 
-  ENDIF.
+  endif.
 
   write p_imp-base       to lv_base decimals 2 .
   write p_imp-rate       to lv_rate decimals 2.
