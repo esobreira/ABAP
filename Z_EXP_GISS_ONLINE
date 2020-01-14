@@ -9,16 +9,15 @@
 *& Demais filiais ainda a ser criado.
 *&---------------------------------------------------------------------*
 
-report z_exp_giss_online line-size 500 no standard page heading.
+REPORT Z_EXP_GISS_ONLINE LINE-SIZE 500 NO STANDARD PAGE HEADING.
 
-tables: j_1bnfdoc, j_1bnflin, lfa1, zgiss_codserv.
+TABLES: j_1bnfdoc, J_1BNFLIN, lfa1, zgiss_codserv.
 
 data: begin of listout occurs 0,
       line(1024) type c,
       end of listout.
 
-types:
-
+TYPES:
 begin of ty_critica,
   registro(10)  type c,
   mensagem type c length 500,
@@ -28,70 +27,69 @@ begin of ty_arquivo,
   linha type c length 2000,
 end of ty_arquivo,
 
-begin of ty_relat_confer,
-  doc_num(10)     type c,
-  nf_inicial(10)  type c,
-  serie(1)        type c,
-  raz_social(200) type c,
-  cpf_cnpj(14)    type c,
-  "DIA             type i,
-  atividade(8)    type c,
-  receita_bruta   type p decimals 2,
-  data_emissao    type d,
-  data_lcto       type d,
+BEGIN OF ty_relat_confer,
+  DOC_NUM(10)     type c,
+  NF_INICIAL(10)  type c,
+  SERIE(1)        type c,
+  PARID           like LFA1-lifnr,
+  RAZ_SOCIAL(200) type c,
+  CPF_CNPJ(14)    type c,
+  MUNICIPIO(30)   type c,
+  NBM             like j_1bnflin-nbm,
+  ATIVIDADE(120)  type c,
+  RECEITA_BRUTA   type p DECIMALS 2,
+  DATA_EMISSAO    type d,
+  DATA_LCTO       type d,
   "BASE_CALCULO    type p DECIMALS 2,
-  aliquota        type p decimals 2,
-  imposto         type p decimals 2,
-  simples_nac(20) type c,     "Indica se é SIMPLES NACIONAL.
-  status(20)      type c,     "Tipo de Retenção
-  tipo_pf_pj(20)  type c,     "Tipo PF/PF = 2 PJ - 1 PF
-  modalidade(20)  type c,     "Modalidade T = Tomador
-  estab_munic(20) type c,     "Estabelecido no Município S/N
-  criticas(500)   type c,     "Críticas
-end of ty_relat_confer,
+  ALIQUOTA        type p DECIMALS 2,
+  VLR_IMP_ISS     type p DECIMALS 2,
+  SIMPLES_NAC(20) type c,     "Indica se é SIMPLES NACIONAL.
+  SIMEI(20)       type c,     "Indica se informado SIMEI na NF.
+  STATUS(20)      type c,     "Tipo de Retenção
+  TIPO_PF_PJ(20)  type c,     "Tipo PF/PF = 2 PJ - 1 PF
+  MODALIDADE(20)  type c,     "Modalidade T = Tomador
+  ESTAB_MUNIC(20) type c,     "Estabelecido no Município S/N
+  LOC_PRES_SRV(20) type c,    "Indica o Local da Prestação do Srv.
+  CRITICAS(500)   type c,     "Críticas
+END OF ty_relat_confer,
 
-*BEGIN OF ty_itemnf,
-*  cfop type J_1BNFLIN-cfop,
-*  nbm type J_1BNFLIN-nbm,
-*END of ty_itemnf,
-
-begin of ty_nfs,
+BEGIN OF ty_nfs,
   "bukrs         LIKE j_1bnfdoc-bukrs,
-  branch        like j_1bnfdoc-branch,
-  docnum        like j_1bnfdoc-docnum,
-  nfenum        like j_1bnfdoc-nfenum,    "Nr NF-e
-  nfnum         like j_1bnfdoc-nfnum,     "Nr NF antiga
-  series        like j_1bnfdoc-series,
-  docdat        like j_1bnfdoc-docdat,
-  pstdat        like j_1bnfdoc-pstdat,
-  nftot         like j_1bnfdoc-nftot,
-  parid         like j_1bnfdoc-parid,
-  observ        like j_1bnfdoc-observat,
-  belnr         like j_1bnfdoc-belnr,     "Nr docto contábil
-  gjahr         like j_1bnfdoc-gjahr,     "Ano
-end of ty_nfs,
+  branch        LIKE j_1bnfdoc-branch,
+  docnum        LIKE j_1bnfdoc-docnum,
+  nfenum        LIKE j_1bnfdoc-nfenum,    "Nr NF-e
+  nfnum         LIKE j_1bnfdoc-nfnum,     "Nr NF antiga
+  series        LIKE j_1bnfdoc-series,
+  docdat        LIKE j_1bnfdoc-docdat,
+  PSTDAT        LIKE j_1bnfdoc-PSTDAT,
+  nftot         LIKE j_1bnfdoc-nftot,
+  parid         LIKE j_1bnfdoc-parid,
+  observ        LIKE j_1bnfdoc-OBSERVAT,
+  belnr         LIKE j_1bnfdoc-belnr,     "Nr docto contábil
+  gjahr         LIKE j_1bnfdoc-gjahr,     "Ano
+END OF ty_nfs,
 
-begin of ty_prest,
-  lifnr           like lfa1-lifnr,
-  name1           like lfa1-name1,
-  stcd1           like lfa1-stcd1,  "CNPJ/CPF
-  stcd2           like lfa1-stcd2,  "CPF
-  stkzn           like lfa1-stkzn,  "flag PF ?
-  stcd3           like lfa1-stcd3,  "INSCR. ESTADUAL
-  stcd4           like lfa1-stcd4,  "INSCR. MUNICIPAL/SUFRAMA
-  ort01           like lfa1-ort01,  "Local/Cidade
-  ort02           like lfa1-ort02,  "Bairro
-  pstlz           like lfa1-pstlz,  "CEP
-  stras           like lfa1-stras,  "Logradouro
-  regio           like lfa1-regio,  "Estado
-  land1           like lfa1-land1,  "País
-end of ty_prest.
+BEGIN OF ty_prest,
+  lifnr           LIKE lfa1-lifnr,
+  name1           LIKE lfa1-name1,
+  stcd1           LIKE lfa1-stcd1,  "CNPJ/CPF
+  stcd2           LIKE lfa1-stcd2,  "CPF
+  stkzn           LIKE lfa1-stkzn,  "flag PF ?
+  stcd3           LIKE lfa1-stcd3,  "INSCR. ESTADUAL
+  STCD4           LIKE lfa1-STCD4,  "INSCR. MUNICIPAL/SUFRAMA
+  ort01           LIKE lfa1-ort01,  "Local/Cidade
+  ort02           LIKE lfa1-ort02,  "Bairro
+  pstlz           LIKE lfa1-pstlz,  "CEP
+  stras           LIKE lfa1-stras,  "Logradouro
+  regio           LIKE lfa1-regio,  "Estado
+  land1           LIKE lfa1-land1,  "País
+END OF ty_prest.
 
-data: it_t1 type standard table of ty_arquivo with header line,
-      it_h6 type standard table of ty_arquivo with header line.
+data: it_T1 type standard table of ty_arquivo with header line,
+      it_H6 type standard table of ty_arquivo with header line.
 
-data: wa_t1 type ty_arquivo,
-      wa_h6 type ty_arquivo.
+data: wa_T1 type ty_arquivo,
+      wa_H6 type ty_arquivo.
 
 data: it_criticas type standard table of ty_critica with header line,
       wa_critica type ty_critica.
@@ -101,248 +99,276 @@ data: it_conferencia type standard table of ty_relat_confer with header line,
       "it_item TYPE TABLE OF ty_itemnf,
       "wa_item TYPE ty_itemnf.
 
-data: it_fcat type slis_t_fieldcat_alv,
-      wa_fcat like line of it_fcat,
-      ws_layout type slis_layout_alv.
+DATA: IT_FCAT TYPE SLIS_T_FIELDCAT_ALV,
+      WA_FCAT LIKE LINE OF IT_FCAT,
+      ws_layout TYPE slis_layout_alv.
 
-types: it_cod_srv type standard table of zgiss_codserv,
-       wa_cod_srv type zgiss_codserv.
+"TYPES: it_srv type standard table of zgiss_codserv,
+"       wa_srv type zgiss_codserv.
 
-data: p_tpdoc type i value 0,
-      header_t1 type string,
-      header_h6 type string,
-      linha type string,
-      separador type string value cl_abap_char_utilities=>newline,
+DATA: header_T1 type STRING,
+      header_H6 type STRING,
+      linha type STRING,
+      separador type string value CL_ABAP_CHAR_UTILITIES=>NEWLINE,
       dt_arquivo(8) type c,
       nm_arquivo type string,
       ic_origem_dados(1) type c value 'R',  "valor fixo cf layout
-      icount type i value 0,
-      iqtdecriticas type i value 0,
+      iCount type i value 0,
+      iQtdeCriticas type i value 0,
       sep(2) type c value '||'.
 
-data: cd_atividade_nf           type j_1bnflin-nbm,
-      cd_atividade              type j_1bnflin-nbm,   "Código de Atividade nacional.
+DATA: curdate                   type sy-datum,
+      nbm_nf                    type J_1BNFLIN-nbm,
+      "cd_atividade_nf           type zgiss_codserv-cdativ,
       cd_local_prestacao        type c, "D - Dentro do município F - Fora do município.
       cd_prest_tom_estab_mun(1) type c, "Tomador Estabelecido no Municipio.
       cd_tipo_cadastro(1)       type c,
-      fl_isento(1)              type c,
-      str_cnpjcpf(14)           type c,
-      nr_notfis                 type j_1bnfdoc-nfenum,
-      nm_tipo_logradouro(5)     type c,
-      nm_titulo_logradouro(5)   type c,
-      nm_logradouro(50)         type c,
-      nm_compl_logradouro(40)   type c,
-      nr_logradouro(10)         type c,
-      nr_inscr_estadual(15)     type c,
-      fl_simples(1)             type c,
-      fl_simei(1)               type c,
-      cd_indicador(1)           type c,
-      nr_layout(1)              type c,
-      "vlr_aliquota(22)          TYPE c,
-      vlr_aliquota              type p decimals 2,
-      "vlr_ISS                   LIKE BSEG-WRBTR,
-      vlr_iss                   type p decimals 2,
-      vlr_base_calc             like j_1bnfdoc-nftot,
-      tp_doc_nf(1)              type c, "1 - Não Retida / 5 - Retida
-      chave_ref_contab(14)      type c,
-      is_construtora            type c.
+      fl_isento(1)              TYPE c,
+      str_CNPJCPF(14)           TYPE c,
+      nr_notfis                 TYPE j_1bnfdoc-nfenum,
+      nm_tipo_logradouro(5)     TYPE c,
+      nm_titulo_logradouro(5)   TYPE c,
+      nm_logradouro(50)         TYPE c,
+      nm_compl_logradouro(40)   TYPE c,
+      nr_logradouro(10)         TYPE c,
+      nr_inscr_estadual(15)     TYPE c,
+      fl_simples(1)             TYPE c,
+      fl_simei(1)               TYPE c,
+      cd_indicador(1)           TYPE c,
+      nr_layout(1)              TYPE c,
+      vlr_aliquota              TYPE p DECIMALS 2,
+      vlr_aliq_SIMPLES          TYPE p DECIMALS 2,
+      vlr_ISS                   TYPE p DECIMALS 2,
+      "vlr_base_calc             LIKE j_1bnfdoc-nftot,  "14/01/2020 - Base de cálculo não é usada neste layout.
+      tp_doc_nf(1)              TYPE c, "1 - Não Retida / 5 - Retida
+      chave_ref_contab(14)      TYPE c.
 
-data: wa_nfs type ty_nfs,
-      wa_prest type ty_prest,
-      it_nfs type table of ty_nfs,
-      it_prest type table of ty_prest with key lifnr.
+DATA: wa_nfs TYPE ty_nfs,
+      wa_prest TYPE ty_prest,
+      wa_srv type zgiss_codserv,
+      it_nfs TYPE TABLE OF ty_nfs,
+      it_prest TYPE TABLE OF ty_prest WITH KEY lifnr.
 
 data: list like abaplist occurs 0 with header line,
-      ld_filename type string,
+      ld_filename TYPE string,
       ld_path type string,
       ld_fullpath type string,
       ld_result type i.
 
-write sy-datum to dt_arquivo.
+TYPES:
+BEGIN OF ty_aliquotas,
+  aliq  like zgiss_codserv-aliq,
+  qtde  type i,
+END OF ty_aliquotas.
 
-selection-screen begin of block b1 with frame title text-t01.
+DATA: it_aliq type standard table of ty_aliquotas with header line,
+      wa_aliq type ty_aliquotas,
+      iQtdAliqDistintasNF type i value 0.
+
+WRITE sy-datum to dt_arquivo.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-t01.
 "SELECT-OPTIONS:   p_branch     FOR  j_1bnfdoc-branch default '0001'.  "Padrão = Jundiaí
-parameters:       p_branch      type j_1bnfdoc-branch default '0001'.
-                  "p_pstdat      TYPE j_1bnfdoc-pstdat OBLIGATORY.
-select-options:   p_pstdat      for  j_1bnfdoc-pstdat obligatory,     "Pesquisa por Data de Lançamento.
-                  p_docdat      for  j_1bnfdoc-docdat,                "Data do Documento.
-                  p_docnum      for  j_1bnfdoc-docnum,                "Número Docto.
-                  p_nfenum      for  j_1bnfdoc-nfenum,                "Número da NF
-                  p_parid       for  j_1bnfdoc-parid.
-parameters:       p_file(1024)  type c obligatory. " default 'C:\Temp\GISSOnline_BR30'.
-selection-screen end of block b1.
+PARAMETERS:       p_branch      TYPE j_1bnfdoc-branch obligatory.
+SELECT-OPTIONS:   p_pstdat      FOR  j_1bnfdoc-pstdat OBLIGATORY,     "Pesquisa por Data de Lançamento.
+                  p_docdat      FOR  j_1bnfdoc-docdat,                "Data do Documento.
+                  p_docnum      FOR  j_1bnfdoc-docnum matchcode object j1ba,                "Número Docto.
+                  p_nfenum      FOR  j_1bnfdoc-nfenum,                "Número da NF
+                  p_parid       FOR  j_1bnfdoc-parid.
+SELECTION-SCREEN END OF BLOCK b1.
 
-selection-screen begin of block b3 with frame title text-t03.
-  parameters: p_rlconf        as checkbox,  "Indica que é pra exportar o Relatório de Conferência.
-              p_fmth6         as checkbox,  "Indica que é pra exportar registros da Construção Civil.
-              p_expmun        as checkbox.  "Indica que é pra exportar NFs do Local de negócios selecionado.
-selection-screen end of block b3.
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-t02.
+  PARAMETERS: p_rlconf        as CHECKBOX.  "Indica que é pra exportar o Relatório de Conferência.
+SELECTION-SCREEN END OF BLOCK b3.
 
-selection-screen begin of block b2 with frame title text-t02.
-  parameters: p_alvara(10)  type c. "Código do Alvará
-selection-screen end of block b2.
+SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE text-t03.
+  PARAMETERS:     p_fmtH6         as CHECKBOX,  "Indica que é pra exportar registros da Construção Civil.
+                  p_expmun        as CHECKBOX.  "Indica que é pra exportar NFs do Local de negócios selecionado.
+  PARAMETERS:     p_file(1024)  type c OBLIGATORY DEFAULT 'C:\Temp\GISSOnline_BR30'.
+SELECTION-SCREEN END OF BLOCK b4.
 
-at selection-screen on value-request for p_file.
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-t04.
+  PARAMETERS: p_alvara(10)  type c. "Código do Alvará
+SELECTION-SCREEN END OF BLOCK b2.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
 
 "Display save dialog window
 "CALL METHOD cl_gui_frontend_services=>file_save_dialog
-call method cl_gui_frontend_services=>directory_browse
-  exporting
-    window_title           = 'Informe o nome do arquivo'
+CALL METHOD cl_gui_frontend_services=>DIRECTORY_BROWSE
+  EXPORTING
+    window_title           = 'Selecione a pasta para salvar o arquivo'
     initial_folder         = 'C:\Temp'
     "default_extension      = 'DAT'
     "file_filter            = 'Arquivos DAT (*.dat)|*.dat'
     "default_file_name      = nm_arquivo
     "initial_directory      = 'C:\Temp\'
-  changing
+  CHANGING
     "filename               = ld_filename
     "path                   = ld_path
     "fullpath               = ld_fullpath
     selected_folder         = ld_fullpath.
     "user_action            = ld_result.
 
-if sy-subrc <> 0.
+IF sy-subrc <> 0.
   "MESSAGE 'Arquivo não selecionado.' TYPE 'E'.
-  message 'Diretório não selecionado.' type 'E'.
-  stop.
-else.
+  MESSAGE 'Diretório não selecionado.' TYPE 'E'.
+  STOP.
+ELSE.
   p_file = ld_fullpath.
-endif.
+ENDIF.
 
-start-of-selection.
+START-OF-SELECTION.
 
-select branch
+SELECT branch
       docnum
       nfenum    "Nr Nf-e
       nfnum     "Nr antigo
       series
       docdat    "Data do Documento
-      pstdat    "Data do Lançamento
+      PSTDAT    "Data do Lançamento
       nftot
       parid
       observat
       belnr
       gjahr
-  into table it_nfs
-  from j_1bnfdoc
- where bukrs eq 'BR30' and
-       branch eq p_branch and   "Local de negócios
-       docnum in p_docnum and   "Nr Docto
-       nfenum in p_nfenum and   "Nr NF
-       pstdat in p_pstdat and   "Data de Lançamento
-       docdat in p_docdat and   "Data do Documento
-       parid in p_parid and     "Parceiro
-       doctyp eq 1 and  "Nota fiscal
-       direct eq 1 and "Entradas
-       nftype in ('ZZ', 'ZS', 'ZY', 'ZD').
+  INTO TABLE it_nfs
+  FROM J_1BNFDOC
+ WHERE bukrs EQ 'BR30' AND
+       branch EQ p_branch AND   "Local de negócios
+       docnum IN p_docnum AND   "Nr Docto
+       nfenum IN p_nfenum AND   "Nr NF
+       pstdat IN p_pstdat AND   "Data de Lançamento
+       docdat IN p_docdat AND   "Data do Documento
+       parid IN p_parid AND     "Parceiro
+       doctyp EQ 1 AND  "Nota fiscal
+       direct EQ 1 AND "Entradas
+       nftype IN ('ZZ', 'ZS', 'ZY', 'ZD') AND
+       CANCEL NE 'X'.   "Não traz documento estornado
 
-if sy-subrc ne 0.
-  message 'Dados não encontrados com estes parâmetros.' type 'I'.
-  stop.
-endif.
+IF sy-subrc NE 0.
+  MESSAGE 'Dados não encontrados com estes parâmetros.' TYPE 'I'.
+  STOP.
+ENDIF.
 
-if p_fmth6 eq 'X'.
-  if p_alvara is initial.
-    message 'Informe o Código do Alvará quando for exportar H6 Construção Civil.' type 'I'.
-    stop.
-  endif.
-endif.
+IF p_fmth6 EQ 'X'.
+  IF p_alvara is initial.
+    MESSAGE 'Informe o Código do Alvará quando for exportar H6 Construção Civil.' TYPE 'I'.
+    STOP.
+  ENDIF.
+ENDIF.
 
-concatenate 'CD_INDICADOR||NR_LAYOUT||DT_EMISSAO_NF||NR_DOC_NF_INICIAL||NR_DOC_NF_SERIE||TP_DOC_NF||VL_DOC_NF||VL_BASE_CALCULO||VL_ALIQUOTA||'
+CONCATENATE 'CD_INDICADOR||NR_LAYOUT||DT_EMISSAO_NF||NR_DOC_NF_INICIAL||NR_DOC_NF_SERIE||TP_DOC_NF||VL_DOC_NF||VL_ALIQUOTA||'
         'CD_ATIVIDADE||CD_PREST_TOM_ESTABELECIDO||CD_LOCAL_PRESTACAO||NM_RAZAO_SOCIAL||NR_CNPJ_CPF||CD_TIPO_CADASTRO||' into header_t1.
 
-concatenate header_t1 'NR_INSCRICAO_MUNICIPAL||NM_INSCRICAO_MUNICIPAL_DV||NR_INSCRICAO_ESTADUAL||NM_TIPO_LOGRADOURO||NM_TITULO_LOGRADOURO||NM_LOGRADOURO||'
+CONCATENATE header_t1 'NR_INSCRICAO_MUNICIPAL||NM_INSCRICAO_MUNICIPAL_DV||NR_INSCRICAO_ESTADUAL||NM_TIPO_LOGRADOURO||NM_TITULO_LOGRADOURO||NM_LOGRADOURO||'
         'NM_COMPL_LOGRADOURO||NR_LOGRADOURO||CD_CEP||NM_BAIRRO||CD_ESTADO||NM_CIDADE||FL_ISENTO||FL_SIMPLES||IC_ORIGEM_DADOS' into header_t1.
 
-concatenate 'CD_INDICADOR||NR_LAYOUT||DT_EMISSAO_NF||NR_DOC_NF_INICIAL||NR_DOC_NF_SERIE||TP_DOC_NF||VL_DOC_NF||VL_BASE_CALCULO||VL_ALIQUOTA||'
-        'CD_ATIVIDADE||CD_PREST_TOM_ESTABELECIDO||CD_LOCAL_PRESTACAO||NM_RAZAO_SOCIAL||NR_CNPJ_CPF||CD_TIPO_CADASTRO||' into header_h6.
+CONCATENATE 'CD_INDICADOR||NR_LAYOUT||DT_EMISSAO_NF||NR_DOC_NF_INICIAL||NR_DOC_NF_SERIE||TP_DOC_NF||VL_DOC_NF||VL_ALIQUOTA||'
+        'CD_ATIVIDADE||CD_PREST_TOM_ESTABELECIDO||CD_LOCAL_PRESTACAO||NM_RAZAO_SOCIAL||NR_CNPJ_CPF||CD_TIPO_CADASTRO||' into header_H6.
 
-concatenate header_h6 'NR_INSCRICAO_MUNICIPAL||NM_INSCRICAO_MUNICIPAL_DV||NR_INSCRICAO_ESTADUAL||NM_TIPO_LOGRADOURO||NM_TITULO_LOGRADOURO||NM_LOGRADOURO||'
-        'NM_COMPL_LOGRADOURO||NR_LOGRADOURO||CD_CEP||NM_BAIRRO||CD_ESTADO||NM_CIDADE||FL_ISENTO||FL_SIMPLES||IC_ORIGEM_DADOS||CD_ALVARA' into header_h6.
+CONCATENATE header_H6 'NR_INSCRICAO_MUNICIPAL||NM_INSCRICAO_MUNICIPAL_DV||NR_INSCRICAO_ESTADUAL||NM_TIPO_LOGRADOURO||NM_TITULO_LOGRADOURO||NM_LOGRADOURO||'
+        'NM_COMPL_LOGRADOURO||NR_LOGRADOURO||CD_CEP||NM_BAIRRO||CD_ESTADO||NM_CIDADE||FL_ISENTO||FL_SIMPLES||IC_ORIGEM_DADOS||CD_ALVARA' INTO header_H6.
 
 "write / header.
 
-loop at it_nfs into wa_nfs.
+LOOP AT it_nfs INTO wa_nfs.
 
-  clear wa_critica.
+  CLEAR wa_critica.
+
+  iCount = 0.
 
   "CRÍTICAS
   "1. Verificar se os CFOPs dos itens da nf são diferente de 1999/2999.
-  select count( * )
-    from j_1bnflin
-    into icount
-   where cfop not in ('1999XX', '2999XX')
-     and docnum eq wa_nfs-docnum.
+  SELECT COUNT( * )
+    FROM J_1BNFLIN
+    INTO iCount
+   WHERE cfop NOT IN ('1999XX', '2999XX')
+     AND docnum EQ wa_nfs-docnum.
 
-  if icount > 0.
-    wa_critica-mensagem = 'NF tem CFOP diferente de 1999/XX 2999/XX.'.
-    append wa_critica to it_criticas.
-  endif.
+  IF iCount > 0.
+    wa_critica-mensagem = 'NF não tem CFOP de Serviço. 1999/XX 2999/XX.'.
+    APPEND wa_critica TO it_criticas.
+  ENDIF.
 
-  "2. Se houverem 2 ou mais códigos de serviço diferentes, criticar.
-  select count( distinct nbm )
-    from j_1bnflin
-    into icount
-   where docnum eq wa_nfs-docnum.
+  "2. Se houverem 2 ou mais códigos de serviço diferentes na NF, criticar.
+  SELECT COUNT( DISTINCT nbm )
+    FROM J_1BNFLIN
+    INTO iCount
+   WHERE docnum EQ wa_nfs-docnum.
 
-  if icount >= 2.
-    wa_critica-mensagem = 'NF tem 2 ou mais serviços distintos.'.
-    append wa_critica to it_criticas.
-  endif.
+  IF iCount >= 2.
+    wa_critica-mensagem = 'AVISO!! NF tem 2 ou mais serviços distintos.'.
+    APPEND wa_critica TO it_criticas.
+  ENDIF.
 
-  "-----------------------------------------------------------------------------
+  CLEAR: nbm_nf.
 
-  if wa_nfs-nfenum is initial.  "Se nf-e for nula.
-    write wa_nfs-nfnum to nr_notfis no-zero.    "pega numero da nf antigo.
-  else.
-    write wa_nfs-nfenum to nr_notfis no-zero.
-  endif.
-
-  condense nr_notfis.
-  condense wa_nfs-observ.
+  SELECT SINGLE nbm
+    FROM J_1BNFLIN
+    INTO nbm_nf
+   WHERE docnum EQ wa_nfs-docnum.
 
   "-----------------------------------------------------------------------------
 
-  data: v_cod(4) type c,
-        cd_ativ_sp(5) type c,
-        v_cnt_srv_nac type i.
+  "Quando a série for nula ou vazia e for numérica, gravar 'A'.
+  IF wa_nfs-series IS INITIAL OR wa_nfs-series EQ '' OR wa_nfs-series CA '0123456789'.
+    wa_nfs-series = 'A'.
+  ENDIF.
 
-  select single nbm
-    from j_1bnflin
-    into cd_atividade_nf
-   where docnum eq wa_nfs-docnum.
+  IF wa_nfs-nfenum IS INITIAL.  "Se nf-e for nula.
+    WRITE wa_nfs-nfnum to nr_notfis NO-ZERO.    "pega numero da nf antigo.
+  ELSE.
+    WRITE wa_nfs-nfenum to nr_notfis NO-ZERO.
+  ENDIF.
 
-  "Verifica se o código de atividade é de SP, e contém SSP.
-  if cd_atividade_nf cs 'SSP'.
-    "Se for, troca o cd atividade SP para o nacional.
+  CONDENSE nr_notfis.
+  CONDENSE wa_nfs-observ.
 
-    write cd_atividade_nf+3(4) to v_cod.
-    concatenate '0' v_cod into cd_ativ_sp.
+  TRANSLATE wa_nfs-observ TO UPPER CASE.
 
-    "Busca na tabela de de-para de códigos, o cód de srv de SP.
-    select codsrv_nac flconstr
-      from zgiss_codserv
-      into (cd_atividade, is_construtora)
-     where codsrv_sp eq cd_ativ_sp.
-    endselect.
+  "-----------------------------------------------------------------------------
 
-    cd_atividade_nf = cd_atividade.
+  "Se o serviço da NF estiver cadastrado em uma unidade com 2 ou mais atividades e alíquotas distintas, mostra critica.
+  CLEAR: wa_aliq, iQtdAliqDistintasNF.
 
-  else.
+  SELECT aliq COUNT( * )
+      FROM zgiss_codserv
+      INTO TABLE it_aliq
+     WHERE cdsrv EQ nbm_nf
+       AND branch EQ wa_nfs-branch
+       AND ( dtinival <= sy-datum AND dtfimval >= sy-datum )
+  GROUP BY aliq.
+  "ENDSELECT.
 
-    replace all occurrences of 'SER' in cd_atividade_nf with ''.
+  LOOP AT it_aliq into wa_aliq.
+    iQtdAliqDistintasNF = iQtdAliqDistintasNF + 1.
+  ENDLOOP.
 
-    "Verifica se o código de serviço é de Construtora.
-    select flconstr
-      from zgiss_codserv
-      into is_construtora
-     where codsrv_nac eq cd_atividade_nf.
-    endselect.
+  IF iQtdAliqDistintasNF > 1.
+    wa_critica-mensagem = 'NF tem serviço com 2 ou mais alíquotas. Verificar cadastro do Serviço.'.
+    APPEND wa_critica TO it_criticas.
+  ENDIF.
 
-  endif.
+  "-----------------------------------------------------------------------------
+
+  "Pesquisa 1 ÚNICO Codigo de Srv da NF na tabela zgiss_codserv.
+  CLEAR: wa_srv.
+
+  SELECT cdativ cdsrvmun flconstr nmativ aliq
+        FROM zgiss_codserv
+        INTO CORRESPONDING FIELDS OF wa_srv
+       WHERE cdsrv EQ nbm_nf
+         AND branch EQ wa_nfs-branch
+         AND ( dtinival <= sy-datum AND dtfimval >= sy-datum ).
+  ENDSELECT .
+
+  "-----------------------------------------------------------------------------
+
+  clear wa_prest.
 
   " Busca o Prestador
-  select single
+  SELECT SINGLE
          lifnr  "Cod.
          name1  "razão social
          stcd1  "cnpf
@@ -356,51 +382,53 @@ loop at it_nfs into wa_nfs.
          stras  "Logradouro
          regio  "Estado
          land1  "País
-    into corresponding fields of wa_prest
-    from lfa1
-   where lifnr eq wa_nfs-parid.
+    INTO CORRESPONDING FIELDS OF wa_prest
+    FROM LFA1
+   WHERE lifnr EQ wa_nfs-parid.
 
   "Se o prestador for Estrangeiro, gera erro.
-  if wa_prest-land1 ne 'BR'.
+  IF wa_prest-land1 NE 'BR'.
     wa_critica-mensagem = 'Parceiro não é do Brasil. Desconsidere esta NF da consulta.'.
-    append wa_critica to it_criticas.
-  endif.
+    APPEND wa_critica TO it_criticas.
+  ENDIF.
 
-  condense wa_prest-ort01.
+  CONDENSE wa_prest-ort01.
 
   "Prestador/Tomador estabelecido no município:
-  if p_branch eq '0001'.
-    if wa_prest-ort01 eq 'JUNDIAI' or wa_prest-ort01 eq 'JUNDIAÍ'.
+  IF p_branch EQ '0001'.
+    IF wa_prest-ort01 EQ 'JUNDIAI' OR wa_prest-ort01 EQ 'JUNDIAÍ'.
       cd_prest_tom_estab_mun = 'S'.         "S-Estabelecido
-    else.
+    ELSE.
         cd_prest_tom_estab_mun = 'N'.        "N-Não Estabelecido
-    endif.
-  endif.
+    ENDIF.
+  ENDIF.
 
-  condense wa_prest-stcd1.
+  CONDENSE wa_prest-stcd1.
+
+  CLEAR: cd_tipo_cadastro, str_CNPJCPF.
 
   "Pessoa Física ou Pessoa Jurídica
-  if wa_prest-stkzn eq 'X'.
+  IF wa_prest-STKZN EQ 'X'.
     cd_tipo_cadastro = '1'.   "Física "
-    str_cnpjcpf = wa_prest-stcd2.
-  else.
+    str_CNPJCPF = wa_prest-stcd2.
+  ELSE.
     cd_tipo_cadastro = '2'.   "DEFAULT Jurídica
-    str_cnpjcpf = wa_prest-stcd1.
-  endif.
+    str_CNPJCPF = wa_prest-stcd1.
+  ENDIF.
 
   fl_isento = 'N'.    " I.E.
 
-  condense wa_prest-stcd3.
+  CONDENSE wa_prest-stcd3.
 
-  if wa_prest-stcd3 eq '' or wa_prest-stcd3 eq 'ISENTO'.
+  IF wa_prest-stcd3 EQ '' OR wa_prest-stcd3 EQ 'ISENTO'.
     fl_isento                   = 'S'.    "Isenção de Inscrição Estadual
     nr_inscr_estadual           = ''.
-  else.
+  ELSE.
     fl_isento                   = 'N'.
     move wa_prest-stcd3 to nr_inscr_estadual.
-  endif.
+  ENDIF.
 
-  replace all occurrences of '-' in wa_prest-pstlz with ''.   "CEP
+  REPLACE ALL OCCURRENCES OF '-' IN wa_prest-pstlz WITH ''.   "CEP
 
   nm_tipo_logradouro            = ' '.    "não informado
   nm_titulo_logradouro          = ' '.    "não informado
@@ -408,130 +436,183 @@ loop at it_nfs into wa_nfs.
   nm_compl_logradouro           = ' '.    "não informado
   nr_logradouro                 = ' '.    "não informado ou pegar de estrutura
 
+  "-----------------------------------------------------------------------------
+
+  DATA: posEqual type i, posPercent type i, chars type i value 0.
+
+  CLEAR: fl_simples, fl_simei, vlr_aliq_simples, posEqual, posPercent, chars.
+
   fl_simples = 'N'.        "Como padrão: Não Simples.
   fl_simei = 'N'.
 
-  if wa_nfs-observ cs 'SIMPLES'.
+  "Verifica se é SIMPLES
+  IF wa_nfs-observ CS 'SIMPLES'.
     fl_simples = 'S'.
-  endif.
+  ENDIF.
 
-  if wa_nfs-observ cs 'SIMEI'.
-    fl_simei = 'S'.
-  endif.
+  "Pega alíquota do Simples Nacional.
+  IF wa_nfs-observ CS 'SIMPLES='.
+
+    SEARCH wa_nfs-observ FOR '='.
+
+    IF sy-subrc EQ 0.
+      posEqual = sy-fdpos.
+      posEqual = posEqual + 1.
+    ENDIF.
+
+    SEARCH wa_nfs-observ FOR '%'.
+
+    IF sy-subrc EQ 0.
+      posPercent = sy-fdpos.
+      "posPercent = posPercent - 1.  "Remove %
+    ENDIF.
+
+    chars = posPercent - posEqual.
+
+    vlr_aliq_simples = wa_nfs-observ+posEqual(chars). "Extrai a alíquota do simples.
+  ENDIF.
+
+  "-----------------------------------------------------------------------------
+
+  CLEAR: cd_local_prestacao.
 
   cd_local_prestacao = 'D'.     "Como padrão: Dentro do Município
 
-  if wa_nfs-observ cs 'FORA MUNICIPIO'.
+  IF wa_nfs-observ CS 'FORA MUNICIPIO'.
     cd_local_prestacao = 'F'.
-  endif.
+  ENDIF.
 
-  if p_tpdoc eq 0.
-    "Ler as condições que determinam o tp_doc_nf de cada nf.
+  CLEAR: vlr_iss, vlr_aliquota, tp_doc_nf. ", vlr_base_calc.
 
-    "Unir BELNR GJAHR que forma a chave de referência com a BKPF-AWKEY
+  "-----------------------------------------------------------------------------
 
-    data: wx_awkey(20) type c,
-          wx_belnr(10) type c.
+  "Unir BELNR GJAHR que forma a chave de referência com a BKPF-AWKEY
 
-    concatenate wa_nfs-belnr wa_nfs-gjahr into wx_awkey.
+  DATA: wx_awkey(20) type c,
+        wx_belnr(10) type c.
 
-    " Seleciona a chave do mestre da contabilidade
-    select belnr
-      into wx_belnr
-      from bkpf
-     where bukrs eq 'BR30' and
-           "XBLNR EQ nr_notfis AND  "as vezes este campo aparece com '000385-0' então não pesquisar por ele.
-           gjahr eq wa_nfs-gjahr and
-           awkey eq wx_awkey.
-    endselect.
+  CONCATENATE wa_nfs-belnr wa_nfs-gjahr into wx_awkey.
 
-    vlr_iss = 0.
+  " Seleciona a chave do mestre da contabilidade
+  SELECT BELNR
+    INTO wx_belnr
+    FROM BKPF
+   WHERE bukrs EQ 'BR30' AND
+         "XBLNR EQ nr_notfis AND  "as vezes este campo aparece com '000385-0' então não pesquisar por ele.
+         GJAHR EQ wa_nfs-gjahr AND
+         AWKEY EQ wx_awkey.
+  ENDSELECT.
 
-    "Seleciona o ISS do lançamento contábil.
-    select wrbtr
-      into vlr_iss
-      from bseg
-     where bukrs eq 'BR30' and
-           bupla eq p_branch and
-           belnr eq wx_belnr and         " Nr Docto
-           gjahr eq wa_nfs-gjahr and     " Exercício
-           saknr eq '0021642907' and     " ISS A RECOLHER
-           bschl eq '50'.                " Chave de Lçto
-    endselect.
+  vlr_iss = 0.
 
-    "write: / 'ISS', vlr_iss.
+  "Seleciona o ISS do lançamento contábil.
+  SELECT WRBTR
+    INTO vlr_iss
+    FROM BSEG
+   WHERE bukrs EQ 'BR30' AND
+         bupla EQ p_branch AND
+         belnr EQ wx_belnr AND         " Nr Docto
+         gjahr EQ wa_nfs-gjahr AND     " Exercício
+         SAKNR EQ '0021642907' AND     " ISS A RECOLHER
+         BSCHL EQ '50'.                " Chave de Lçto
+  ENDSELECT.
 
-    "vlr_aliquota = '4.124675'.
+  "Define o valor da alíquota.
+  "Se não encontrou ISS para a nota fiscal, não salva como Retido.
+  IF vlr_iss > 0.
+    vlr_aliquota = ( vlr_iss / wa_nfs-nftot ) * 100.               "Preencher valor referente as alíquotas constantes no Anexo III da LC 123/2006 com ponto
+    tp_doc_nf = '5'.      "Retida
+    "vlr_base_calc = wa_nfs-nftot.
+  ELSE.
+    "Buscar a alíquota do iss para todos os casos que não tiver retenção, ou seja, sempre terá que consultar a tabela de serviço/atividade.
+    "14/01/2020 - Cf Maria, a alíquota sempre vai no lançamento do GISS independente de retenção ou não.
+    vlr_aliquota = wa_srv-aliq.
+    tp_doc_nf = '1'.      "Não Retida
+    "vlr_base_calc = 0.
+  ENDIF.
 
-    "write: / vlr_aliquota.
-    "stop.
+  "-----------------------------------------------------------------------------
 
-    "Define o valor da alíquota.
-    "Se não encontrou ISS para a nota fiscal, não salva como Retido.
-    if vlr_iss > 0.
-      vlr_aliquota = ( vlr_iss / wa_nfs-nftot ) * 100.               "Preencher valor referente as alíquotas constantes no Anexo III da LC 123/2006 com ponto
-      tp_doc_nf = '5'.      "Retida
-      vlr_base_calc = wa_nfs-nftot.
-    else.
-      vlr_aliquota = 0.
-      tp_doc_nf = '1'.      "Não Retida
-      vlr_base_calc = 0.
-    endif.
+  "Teste
+  "tp_doc_nf = '5'.
 
-  else.
-    tp_doc_nf = p_tpdoc.
-    vlr_aliquota = 0.
-    vlr_base_calc = 0.
-  endif.
+  IF fl_simples EQ 'S'.
 
-  "Quando a série for nula ou vazia e for numérica, gravar 'A'.
-  if wa_nfs-series is initial or wa_nfs-series eq '' or wa_nfs-series ca '0123456789'.
-    wa_nfs-series = 'A'.
-  endif.
+    IF vlr_aliq_simples IS INITIAL.
+      wa_critica-mensagem = 'Informado SIMPLES mas não informado Alíquota. Verificar lançamento.'.
+      APPEND wa_critica TO it_criticas.
+    ENDIF.
 
-  data: str_nf_tot type string,
-        str_base_calc type string,
+    IF tp_doc_nf EQ '5'.    "Retido
+      "Calcula o valor do ISS com a Aliquota do SIMPLES digitada na obs.
+      vlr_iss = ( wa_nfs-nftot * vlr_aliq_simples ) / 100.
+      vlr_aliquota = vlr_aliq_simples.
+    ENDIF.
+
+  ENDIF.
+
+  "-----------------------------------------------------------------------------
+
+  "Prestação Fora do Município = FORA MUNICIPIO = Funciona igual ao SIMEI.
+  IF wa_nfs-observ CS 'SIMEI' OR cd_local_prestacao EQ 'F'.
+    fl_simei = 'S'.
+
+    "Se for SIMEI, verificar se houve retenção.
+    IF tp_doc_nf EQ '5'.
+
+      wa_critica-mensagem = 'NF foi lançada como SIMEI e tem Retenção. Verificar se é devida a retenção!'.
+      APPEND wa_critica TO it_criticas.
+
+    ELSE.
+
+      "Quando for digitado SIMEI na obs da NF, envia para o arquivo como Não Retido, com a Aliquota do cadastro na zgiss_codsrv, mas sem valor de ISS.
+      vlr_aliquota = wa_srv-aliq.
+      vlr_iss = 0.
+
+    ENDIF.
+
+  ENDIF.
+
+  "-----------------------------------------------------------------------------
+
+  DATA: str_nf_tot type string,
+        "str_base_calc type string,
         str_aliq_iss type string,
         sdocdat(10) type c.
 
   move wa_nfs-nftot to str_nf_tot.
-  condense str_nf_tot.
-  replace all occurrences of '.' in str_nf_tot with ''.
+  CONDENSE str_nf_tot.
+  REPLACE ALL OCCURRENCES OF '.' IN str_nf_tot WITH ''.
 
-  write wa_nfs-docdat to sdocdat dd/mm/yyyy.
-  replace all occurrences of '.' in sdocdat with '/'.
+  WRITE wa_nfs-docdat to sdocdat DD/MM/YYYY.
+  REPLACE ALL OCCURRENCES OF '.' IN sdocdat WITH '/'.
 
-  if vlr_aliquota > 0.
-    move vlr_base_calc to str_base_calc.
-    move vlr_aliquota to str_aliq_iss.
+  IF vlr_aliquota > 0.    "Valor da Alíquota do ISS.
+    "MOVE vlr_base_calc to str_base_calc.
+    MOVE vlr_aliquota to str_aliq_iss.
 
-    condense str_base_calc.
-    condense str_aliq_iss.
+    "CONDENSE str_base_calc.
+    CONDENSE str_aliq_iss.
 
-    replace all occurrences of '.' in str_base_calc with ''.
+    "REPLACE ALL OCCURRENCES OF '.' IN str_base_calc WITH ''.
 
     "Alíquota, de acordo com o layout, tem que ter ponto.
     "REPLACE ALL OCCURRENCES OF '.' IN str_aliq_iss WITH ''.
-  else.
+  ELSE.
     "Não tem ISS
     str_aliq_iss = ''.
-    str_base_calc = ''.
-  endif.
+    "str_base_calc = ''.
+  ENDIF.
 
-  "CRÍTICA
-  "3. Se for SIMPLES/SIMEI, verificar se houve retenção. Se houver, critica.
-  if ( fl_simples eq 'S' or fl_simei eq 'S' ) and tp_doc_nf eq '5'.
-    wa_critica-mensagem = 'NF foi lançada como SIMPLES/SIMEI e tem Retenção. Verificar lançamento.'.
-    append wa_critica to it_criticas.
-  endif.
+  "-----------------------------------------------------------------------------
 
-  if is_construtora eq 'S'.
+  IF wa_srv-flconstr EQ 'X'.
 
     " Serviço Tomado de Prestador Residente no País Com Nota Fiscal - Com Obra
     cd_indicador = 'H'.
     nr_layout = '6'.
 
-    concatenate cd_indicador sep
+    CONCATENATE cd_indicador sep
                 nr_layout sep
                 sdocdat sep
                 "dia '/' mes '/' ano sep "wa_temp-dt_emissao_nf sep
@@ -540,55 +621,55 @@ loop at it_nfs into wa_nfs.
                 "sep "NR_DOC_NF_FINAL
                 tp_doc_nf sep
                 str_nf_tot sep
-                str_base_calc sep
+                "str_base_calc sep
                 str_aliq_iss sep
-                cd_atividade sep
+                wa_srv-cdativ sep    "CD_ATIVIDADE
                 cd_prest_tom_estab_mun sep
-                cd_local_prestacao sep
+                CD_LOCAL_PRESTACAO sep
                 wa_prest-name1 sep  "Razão social
-                str_cnpjcpf sep     "CNPJ/CPF
-                cd_tipo_cadastro sep
-                wa_prest-stcd4 sep  "Inscr.Municipal
+                str_CNPJCPF sep     "CNPJ/CPF
+                CD_TIPO_CADASTRO sep
+                wa_prest-STCD4 sep  "Inscr.Municipal
                 sep "wa_temp-nr_inscr_municipal_dv sep
                 "wa_prest-stcd3 sep  "Inscrição Estadual
                 nr_inscr_estadual sep "Inscrição Estadual
-                nm_tipo_logradouro sep
-                nm_titulo_logradouro sep
+                NM_TIPO_LOGRADOURO sep
+                NM_TITULO_LOGRADOURO sep
                 wa_prest-stras sep
-                nm_compl_logradouro sep
-                nr_logradouro sep
+                NM_COMPL_LOGRADOURO sep
+                NR_LOGRADOURO sep
                 wa_prest-pstlz sep  "CEP
                 wa_prest-ort02 sep  "Bairro
                 wa_prest-regio sep  "Estado
                 wa_prest-ort01 sep  "Cidade
-                fl_isento sep
-                fl_simples sep
+                FL_ISENTO sep
+                FL_SIMPLES sep
                 ic_origem_dados sep
                 p_alvara
-           into linha.
+           INTO linha.
 
-    if p_expmun eq 'X'.
+    IF p_expmun EQ 'X'.
       "Se marcado, exporta tudo.
       wa_h6-linha = linha.
       append wa_h6 to it_h6.
-    else.
-      if p_branch eq '0001'
-        and ( wa_prest-ort01 eq 'JUNDIAÍ' or wa_prest-ort01 eq 'JUNDIAI' ).
+    ELSE.
+      IF p_branch EQ '0001'
+        AND ( wa_prest-ort01 EQ 'JUNDIAÍ' OR wa_prest-ort01 EQ 'JUNDIAI' ).
         "Não exporta nfs de Jdi no movimento.
-      else.
+      ELSE.
         wa_h6-linha = linha.
         append wa_h6 to it_h6.
-      endif.
-    endif.
+      ENDIF.
+    ENDIF.
     "WRITE: / linha.
 
-  else.
+  ELSE.
 
     " Serviço Tomado de Prestador Residente no País Com Nota Fiscal = Defina este campo com o valor T
     cd_indicador = 'T'.
     nr_layout = '1'.
 
-    concatenate cd_indicador sep
+    CONCATENATE cd_indicador sep
                 nr_layout sep
                 sdocdat sep
                 "dia '/' mes '/' ano sep "wa_temp-dt_emissao_nf sep
@@ -597,139 +678,177 @@ loop at it_nfs into wa_nfs.
                 "sep "NR_DOC_NF_FINAL
                 tp_doc_nf sep
                 str_nf_tot sep
-                str_base_calc sep
+                "str_base_calc sep
                 str_aliq_iss sep
-                cd_atividade sep
+                wa_srv-cdativ sep   "CD_ATIVIDADE
                 cd_prest_tom_estab_mun sep
-                cd_local_prestacao sep
+                CD_LOCAL_PRESTACAO sep
                 wa_prest-name1 sep  "Razão social
-                str_cnpjcpf sep     "CNPJ/CPF
-                cd_tipo_cadastro sep
-                wa_prest-stcd4 sep  "Inscr.Municipal
+                str_CNPJCPF sep     "CNPJ/CPF
+                CD_TIPO_CADASTRO sep
+                wa_prest-STCD4 sep  "Inscr.Municipal
                 sep "wa_temp-nr_inscr_municipal_dv sep
                 "wa_prest-stcd3 sep  "Inscrição Estadual
                 nr_inscr_estadual sep "Inscrição Estadual
-                nm_tipo_logradouro sep
-                nm_titulo_logradouro sep
+                NM_TIPO_LOGRADOURO sep
+                NM_TITULO_LOGRADOURO sep
                 wa_prest-stras sep
-                nm_compl_logradouro sep
-                nr_logradouro sep
+                NM_COMPL_LOGRADOURO sep
+                NR_LOGRADOURO sep
                 wa_prest-pstlz sep  "CEP
                 wa_prest-ort02 sep  "Bairro
                 wa_prest-regio sep  "Estado
                 wa_prest-ort01 sep  "Cidade
-                fl_isento sep
-                fl_simples sep
+                FL_ISENTO sep
+                FL_SIMPLES sep
                 ic_origem_dados
-           into linha.
+           INTO linha.
 
     "IF wx_ignorar_reg = 1.
       "ignora a exportação do registro em caso de erro.
     "ELSE.
-      if p_expmun eq 'X'.
+      IF p_expmun EQ 'X'.
         "Se marcado, exporta tudo.
         wa_t1-linha = linha.
         append wa_t1 to it_t1.
-      else.
-        if p_branch eq '0001'
-          and ( wa_prest-ort01 eq 'JUNDIAÍ' or wa_prest-ort01 eq 'JUNDIAI' ).
+      ELSE.
+        IF p_branch EQ '0001'
+          AND ( wa_prest-ort01 EQ 'JUNDIAÍ' OR wa_prest-ort01 EQ 'JUNDIAI' ).
           "Não exporta nfs de Jdi no movimento.
-        else.
+        ELSE.
           wa_t1-linha = linha.
           append wa_t1 to it_t1.
-        endif.
-      endif.
+        ENDIF.
+      ENDIF.
     "ENDIF.
 
-  endif.
+  ENDIF.
 
-  if p_rlconf eq 'X'.
+  IF p_rlconf EQ 'X'.   "Relatório de Conferência
+
+    CLEAR wa_conferencia.
+
     "Captura Dados do Relatório
-    wa_conferencia-doc_num = wa_nfs-docnum.
+    wa_conferencia-DOC_NUM = wa_nfs-docnum.
     wa_conferencia-nf_inicial = nr_notfis.
     wa_conferencia-serie = wa_nfs-series.
+
+    write wa_prest-lifnr to wa_conferencia-PARID no-zero.
+
+    "wa_conferencia-PARID = wa_prest-lifnr.
     wa_conferencia-raz_social = wa_prest-name1.
-    wa_conferencia-cpf_cnpj = str_cnpjcpf.
+    wa_conferencia-cpf_cnpj = str_CNPJCPF.
+    wa_conferencia-municipio = wa_prest-ort01.
     "wa_conferencia-dia = wa_nfs-docdat+6(2).
-    wa_conferencia-atividade = cd_atividade_nf.
+    wa_conferencia-NBM = nbm_nf.
+
+    wa_conferencia-loc_pres_srv = cd_local_prestacao.
+    wa_conferencia-simei = fl_simei.
+
+    "concatenate wa_srv-cdativ ' -- ' wa_srv-nmativ(100) into wa_conferencia-atividade.
+
+    wa_conferencia-atividade = wa_srv-cdativ.
     wa_conferencia-receita_bruta = wa_nfs-nftot.
 
-    move wa_nfs-docdat to wa_conferencia-data_emissao. " DD/MM/YYYY.
-    move wa_nfs-pstdat to wa_conferencia-data_lcto. " DD/MM/YYYY.
+    move wa_nfs-DOCDAT to wa_conferencia-data_emissao. " DD/MM/YYYY.
+    move wa_nfs-PSTDAT to wa_conferencia-data_lcto. " DD/MM/YYYY.
 
     "wa_conferencia-base_calculo = wa_nfs-nftot.
     wa_conferencia-aliquota = vlr_aliquota.
-    wa_conferencia-imposto = vlr_iss.
+    wa_conferencia-vlr_imp_iss = vlr_iss.
 
-    if fl_simples eq 'S'.
+    IF fl_simples EQ 'S'.
       wa_conferencia-simples_nac = '1 - Simples'.
-    endif.
+      wa_conferencia-aliquota = vlr_aliq_simples.
+    ENDIF.
 
-    if tp_doc_nf eq '1'.
+    IF fl_simei EQ 'S'.
+      wa_conferencia-simei = 'Informado'.
+    ENDIF.
+
+    IF cd_local_prestacao EQ 'F'.
+      wa_conferencia-loc_pres_srv = 'Fora Município'.
+    ENDIF.
+
+    IF tp_doc_nf EQ '1'.
       wa_conferencia-status = '1 - Não Retido'.
-    elseif tp_doc_nf eq '5'.
+    ELSEIF tp_doc_nf EQ '5'.
       wa_conferencia-status = '5 - Retido'.
-    endif.
+    ENDIF.
 
-    if cd_tipo_cadastro = '2'.
+    IF cd_tipo_cadastro = '2'.
       wa_conferencia-tipo_pf_pj = '2 - Jurídica'.
-    else.
+    ELSE.
       wa_conferencia-tipo_pf_pj = '1 - Física'.
-    endif.
+    ENDIF.
 
-    if is_construtora eq 'S'.
+    IF wa_srv-flconstr EQ 'X'.
       wa_conferencia-modalidade = 'C - Construtora'.
-    else.
+    ELSE.
       wa_conferencia-modalidade = 'T - Tomador'.
-    endif.
+    ENDIF.
 
-    if cd_prest_tom_estab_mun = 'S'.
-      wa_conferencia-estab_munic = 'Município'.
-    else.
-      wa_conferencia-estab_munic = 'Não'.
-    endif.
+    IF cd_prest_tom_estab_mun = 'S'.
+      wa_conferencia-estab_munic = 'No Município'.
+    ENDIF.
 
-    loop at it_criticas into wa_critica.
-      iqtdecriticas = iqtdecriticas + 1.
-      concatenate ' ' wa_critica-mensagem into wa_conferencia-criticas.
-    endloop.
+    "------------------------------------------------------------------------------------
+
+    DATA wx_Texto(1000) type c value ' '.
+
+    "CLEAR iQtdeCriticas.
+    CLEAR wx_Texto.
+
+    LOOP AT it_criticas INTO wa_critica.
+      "iQtdeCriticas = iQtdeCriticas + 1.
+      CONCATENATE wa_critica-mensagem sy-uline(5) wx_Texto INTO wx_Texto SEPARATED BY separador.
+    ENDLOOP.
+    wa_conferencia-criticas = wx_texto.
 
     "wa_conferencia-criticas = '**Sem críticas'.
 
-    append wa_conferencia to it_conferencia.
+    "------------------------------------------------------------------------------------
 
-  endif.
+    APPEND wa_conferencia TO it_conferencia.
 
-endloop.
+  ENDIF.
 
-if p_rlconf eq 'X'.
-  perform criar_campos_alv.
-  perform relatorio_conferencia.
-else.
-  perform spool_arquivo_texto.
-endif.
+ENDLOOP.
 
-form spool_arquivo_texto.
+IF p_rlconf EQ 'X'.
+  PERFORM CRIAR_CAMPOS_ALV.
+  PERFORM RELATORIO_CONFERENCIA.
+ELSE.
+  PERFORM SPOOL_ARQUIVO_TEXTO.
 
-  if p_fmth6 eq 'X'.
+  DATA MSG_ARQUIVO(1000) type c.
+
+  CONCATENATE 'Arquivo salvo em:' nm_arquivo INTO MSG_ARQUIVO SEPARATED BY SPACE.
+
+  MESSAGE MSG_ARQUIVO TYPE 'I'.
+ENDIF.
+
+FORM SPOOL_ARQUIVO_TEXTO.
+
+  IF p_fmth6 EQ 'X'.
 
     write: header_h6.
-    loop at it_h6 into wa_h6.
+    LOOP AT it_H6 into wa_h6.
       write: / wa_h6-linha.
-    endloop.
+    ENDLOOP.
 
-  else.
+  ELSE.
 
     write: header_t1.
-    loop at it_t1 into wa_t1.
+    LOOP AT it_t1 into wa_t1.
       write: / wa_t1-linha.
-    endloop.
+    ENDLOOP.
 
-  endif.
+  ENDIF.
 
-  concatenate p_file '\GISSOnline_BR30_' p_branch '_' dt_arquivo '.dat' into nm_arquivo.
+  CONCATENATE p_file '\GISSOnline_BR30_' p_branch '_' dt_arquivo '.dat' INTO nm_arquivo.
 
-  call function 'SAVE_LIST'
+  CALL FUNCTION 'SAVE_LIST'
 *   EXPORTING
 *     LIST_INDEX               = '0'
     tables
@@ -753,102 +872,138 @@ form spool_arquivo_texto.
        tables
             data_tab = listout.
 
-endform.
+ENDFORM.
 
-end-of-selection.
+END-OF-SELECTION.
 
-form criar_campos_alv.
+FORM CRIAR_CAMPOS_ALV.
 
-  data idx type i value 1.
+  DATA idx type i value 1.
 
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'DOC_NUM' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Nr. Docto.' .
-  wa_fcat-no_zero = 'X'.
-  wa_fcat-key = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'DOC_NUM' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Nr. Docto.' .
+  WA_FCAT-no_zero = 'X'.
+  WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'NF_INICIAL' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Nr. NF' .
-  wa_fcat-key = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
-
-  idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'SERIE' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Série' .
-  "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'NF_INICIAL' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Nr. NF' .
+  WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'RAZ_SOCIAL' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Razão Social' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'SERIE' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Série' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'CPF_CNPJ' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'CPF/CNPJ' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'DATA_EMISSAO' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Data Emissão' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
-
-*  idx = idx + 1.
-*  WA_FCAT-COL_POS = idx.
-*  WA_FCAT-FIELDNAME = 'DIA' .
-*  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
-*  WA_FCAT-SELTEXT_M = 'Dia' .
-*  "WA_FCAT-KEY = 'X' .
-*  APPEND WA_FCAT TO IT_FCAT .
-*  CLEAR WA_FCAT .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'DATA_EMISSAO' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Data Emissão' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'DATA_LCTO' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Data Lançamento' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'DATA_LCTO' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Data Lançamento' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'PARID' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Parceiro' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'ATIVIDADE' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Cód. Atividade' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'RAZ_SOCIAL' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Razão Social' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'RECEITA_BRUTA' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Receita Bruta' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'CPF_CNPJ' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'CPF/CNPJ' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
+
+  idx = idx + 1.
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'TIPO_PF_PJ' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Tipo PF/PJ' .
+  "WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
+
+  idx = idx + 1.
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'MUNICIPIO' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Município' .
+  "WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
+
+  idx = idx + 1.
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'ESTAB_MUNIC' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Estabelecido' .
+  "WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
+
+  idx = idx + 1.
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'NBM' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Cd. Serviço NF' .
+  "WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
+
+  idx = idx + 1.
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'ATIVIDADE' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Cd. Atividade' .
+  "WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
+
+  idx = idx + 1.
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'RECEITA_BRUTA' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Receita Bruta' .
+  "WA_FCAT-KEY = 'X' .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
 *  idx = idx + 1.
 *  WA_FCAT-COL_POS = idx.
@@ -860,111 +1015,112 @@ form criar_campos_alv.
 *  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'ALIQUOTA' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Alíq. ISS %' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'ALIQUOTA' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Alíq. ISS %' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'IMPOSTO' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Valor ISS' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'VLR_IMP_ISS' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Valor ISS' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'SIMPLES_NAC' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Simples' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'STATUS' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Status' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'STATUS' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Status' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'SIMPLES_NAC' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Simples' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'TIPO_PF_PJ' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Tipo PF/PJ' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'SIMEI' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Simei' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'MODALIDADE' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Modalidade' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'LOC_PRES_SRV' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Loc Prest Srv' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'ESTAB_MUNIC' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Estabelecido' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'MODALIDADE' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Modalidade' .
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
   idx = idx + 1.
-  wa_fcat-col_pos = idx.
-  wa_fcat-fieldname = 'CRITICAS' .
-  wa_fcat-tabname = 'IT_CONFERENCIA' .
-  wa_fcat-seltext_m = 'Críticas' .
+  WA_FCAT-COL_POS = idx.
+  WA_FCAT-FIELDNAME = 'CRITICAS' .
+  WA_FCAT-TABNAME = 'IT_CONFERENCIA' .
+  WA_FCAT-SELTEXT_M = 'Críticas' .
+  WA_FCAT-EMPHASIZE = 'C600'.  "Vermelho
 
-  if iqtdecriticas > 0.
-    "0 = background color
-    "1 = blue
-    "2 = gray
-    "3 = yellow
-    "4 = blue/gray
-    "5 = green
-    "6 = red
-    "7 = orange
-    "- 3rd char = intensified (0=off, 1=on)
-    "- 4th char = inverse display (0=off, 1=on)
-    wa_fcat-emphasize = 'C600'.
-  endif.
+*  IF iQtdeCriticas > 0.
+*    "0 = background color
+*    "1 = blue
+*    "2 = gray
+*    "3 = yellow
+*    "4 = blue/gray
+*    "5 = green
+*    "6 = red
+*    "7 = orange
+*    "- 3rd char = intensified (0=off, 1=on)
+*    "- 4th char = inverse display (0=off, 1=on)
+*    WA_FCAT-EMPHASIZE = 'C600'.
+*  ENDIF.
 
   "WA_FCAT-KEY = 'X' .
-  append wa_fcat to it_fcat .
-  clear wa_fcat .
+  APPEND WA_FCAT TO IT_FCAT .
+  CLEAR WA_FCAT .
 
-endform.
+ENDFORM.
 
-form relatorio_conferencia.
+FORM RELATORIO_CONFERENCIA.
 
   ws_layout-colwidth_optimize = 'X'.
 
-  call function 'REUSE_ALV_GRID_DISPLAY'
-   exporting
-     i_callback_program                = sy-repid
-     it_fieldcat                       = it_fcat
-     is_layout                         = ws_layout
-    tables
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+   EXPORTING
+     I_CALLBACK_PROGRAM                = SY-REPID
+     IT_FIELDCAT                       = IT_FCAT
+     IS_LAYOUT                         = WS_LAYOUT
+    TABLES
       t_outtab                          = it_conferencia
-   exceptions
-     program_error                     = 1
-     others                            = 2.
+   EXCEPTIONS
+     PROGRAM_ERROR                     = 1
+     OTHERS                            = 2.
             .
-  if sy-subrc <> 0.
+  IF sy-subrc <> 0.
 * Implement suitable error handling here
-  endif.
+  ENDIF.
 
-endform.
+ENDFORM.
