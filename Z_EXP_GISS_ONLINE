@@ -178,17 +178,18 @@ SELECT-OPTIONS:   p_pstdat      FOR  j_1bnfdoc-pstdat OBLIGATORY,     "Pesquisa 
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-t02.
-  PARAMETERS: p_rlconf        as CHECKBOX.  "Indica que é pra exportar o Relatório de Conferência.
+  PARAMETERS:     p_rlconf        as CHECKBOX,  "Indica que é pra exportar o Relatório de Conferência.
+                  p_expmn2        as CHECKBOX.  "Indica que é pra exportar NFs do Local de negócios selecionado.
 SELECTION-SCREEN END OF BLOCK b3.
 
 SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE text-t03.
   PARAMETERS:     p_fmtH6         as CHECKBOX,  "Indica que é pra exportar registros da Construção Civil.
-                  p_expmun        as CHECKBOX.  "Indica que é pra exportar NFs do Local de negócios selecionado.
-  PARAMETERS:     p_file(1024)  type c OBLIGATORY DEFAULT 'C:\Temp\GISSOnline_BR30'.
+                  p_expmun        as CHECKBOX,  "Indica que é pra exportar NFs do Local de negócios selecionado.
+                  p_file(1024)    type c OBLIGATORY DEFAULT 'C:\Temp\GISS'.
 SELECTION-SCREEN END OF BLOCK b4.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-t04.
-  PARAMETERS: p_alvara(10)  type c. "Código do Alvará
+  PARAMETERS:     p_alvara(10)    type c default '521907'. "Código do Alvará
 SELECTION-SCREEN END OF BLOCK b2.
 
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
@@ -264,7 +265,7 @@ CONCATENATE 'CD_INDICADOR||NR_LAYOUT||DT_EMISSAO_NF||NR_DOC_NF_INICIAL||NR_DOC_N
 CONCATENATE header_t1 'NR_INSCRICAO_MUNICIPAL||NM_INSCRICAO_MUNICIPAL_DV||NR_INSCRICAO_ESTADUAL||NM_TIPO_LOGRADOURO||NM_TITULO_LOGRADOURO||NM_LOGRADOURO||'
         'NM_COMPL_LOGRADOURO||NR_LOGRADOURO||CD_CEP||NM_BAIRRO||CD_ESTADO||NM_CIDADE||FL_ISENTO||FL_SIMPLES||IC_ORIGEM_DADOS' into header_t1.
 
-CONCATENATE 'CD_INDICADOR||NR_LAYOUT||DT_EMISSAO_NF||NR_DOC_NF_INICIAL||NR_DOC_NF_SERIE||TP_DOC_NF||VL_DOC_NF||VL_ALIQUOTA||'
+CONCATENATE 'CD_INDICADOR||NR_LAYOUT||DT_EMISSAO_NF||NR_DOC_NF_INICIAL||NR_DOC_NF_SERIE||TP_DOC_NF||VL_DOC_NF||VL_BASE_CALCULO||VL_ALIQUOTA||'
         'CD_ATIVIDADE||CD_PREST_TOM_ESTABELECIDO||CD_LOCAL_PRESTACAO||NM_RAZAO_SOCIAL||NR_CNPJ_CPF||CD_TIPO_CADASTRO||' into header_H6.
 
 CONCATENATE header_H6 'NR_INSCRICAO_MUNICIPAL||NM_INSCRICAO_MUNICIPAL_DV||NR_INSCRICAO_ESTADUAL||NM_TIPO_LOGRADOURO||NM_TITULO_LOGRADOURO||NM_LOGRADOURO||'
@@ -346,7 +347,7 @@ LOOP AT it_nfs INTO wa_nfs.
   ENDLOOP.
 
   IF iQtdAliqDistintasNF > 1.
-    wa_critica-mensagem = 'NF tem serviço com 2 ou mais alíquotas. Verificar cadastro do Serviço.'.
+    wa_critica-mensagem = 'NF tem Serviço com 2 ou mais alíquotas no cadastro. Verifique o Cadastro.'.
     APPEND wa_critica TO it_criticas.
   ENDIF.
 
@@ -361,7 +362,12 @@ LOOP AT it_nfs INTO wa_nfs.
        WHERE cdsrv EQ nbm_nf
          AND branch EQ wa_nfs-branch
          AND ( dtinival <= sy-datum AND dtfimval >= sy-datum ).
-  ENDSELECT .
+  ENDSELECT.
+
+  IF sy-subrc <> 0.
+    CONCATENATE 'Código de Atividade do Serviço' nbm_nf 'não cadastrado na ZGISS_CODSERV.' INTO wa_critica-mensagem SEPARATED BY SPACE.
+    APPEND wa_critica TO it_criticas.
+  ENDIF.
 
   "-----------------------------------------------------------------------------
 
@@ -442,6 +448,7 @@ LOOP AT it_nfs INTO wa_nfs.
 
   CLEAR: fl_simples, fl_simei, vlr_aliq_simples, posEqual, posPercent, chars.
 
+  vlr_aliq_simples = 0.
   fl_simples = 'N'.        "Como padrão: Não Simples.
   fl_simei = 'N'.
 
@@ -533,26 +540,6 @@ LOOP AT it_nfs INTO wa_nfs.
 
   "-----------------------------------------------------------------------------
 
-  "Teste
-  "tp_doc_nf = '5'.
-
-  IF fl_simples EQ 'S'.
-
-    IF vlr_aliq_simples IS INITIAL.
-      wa_critica-mensagem = 'Informado SIMPLES mas não informado Alíquota. Verificar lançamento.'.
-      APPEND wa_critica TO it_criticas.
-    ENDIF.
-
-    IF tp_doc_nf EQ '5'.    "Retido
-      "Calcula o valor do ISS com a Aliquota do SIMPLES digitada na obs.
-      vlr_iss = ( wa_nfs-nftot * vlr_aliq_simples ) / 100.
-      vlr_aliquota = vlr_aliq_simples.
-    ENDIF.
-
-  ENDIF.
-
-  "-----------------------------------------------------------------------------
-
   "Prestação Fora do Município = FORA MUNICIPIO = Funciona igual ao SIMEI.
   IF wa_nfs-observ CS 'SIMEI' OR cd_local_prestacao EQ 'F'.
     fl_simei = 'S'.
@@ -571,6 +558,25 @@ LOOP AT it_nfs INTO wa_nfs.
 
     ENDIF.
 
+  ENDIF.
+
+  "-----------------------------------------------------------------------------
+
+  "Definições de Alíquota do Simples, se informado, prevalecem sempre, independente de ser Simei e Fora do Município tb.
+  IF fl_simples EQ 'S'.
+
+    IF vlr_aliq_simples IS INITIAL.
+      wa_critica-mensagem = 'Informado SIMPLES mas não informado Alíquota. Verificar lançamento.'.
+      APPEND wa_critica TO it_criticas.
+    ENDIF.
+
+    IF tp_doc_nf EQ '5'.    "Retido
+      "Calcula o valor do ISS com a Aliquota do SIMPLES digitada na obs.
+      vlr_iss = ( wa_nfs-nftot * vlr_aliq_simples ) / 100.
+    ENDIF.
+
+    "Sempre prevalece.
+    vlr_aliquota = vlr_aliq_simples.
   ENDIF.
 
   "-----------------------------------------------------------------------------
@@ -606,7 +612,7 @@ LOOP AT it_nfs INTO wa_nfs.
 
   "-----------------------------------------------------------------------------
 
-  IF wa_srv-flconstr EQ 'X'.
+  IF wa_srv-flconstr EQ 'S'.
 
     " Serviço Tomado de Prestador Residente no País Com Nota Fiscal - Com Obra
     cd_indicador = 'H'.
@@ -620,9 +626,10 @@ LOOP AT it_nfs INTO wa_nfs.
                 wa_nfs-series sep
                 "sep "NR_DOC_NF_FINAL
                 tp_doc_nf sep
-                str_nf_tot sep
+                str_nf_tot sep  "VLR DOCTO
+                str_nf_tot sep  "VLR BASE CALC - 15/01/2020 - Envia o Vlr Total na Base de Cálculo
                 "str_base_calc sep
-                str_aliq_iss sep
+                str_aliq_iss sep  "VLR ALIQUOTA
                 wa_srv-cdativ sep    "CD_ATIVIDADE
                 cd_prest_tom_estab_mun sep
                 CD_LOCAL_PRESTACAO sep
@@ -653,15 +660,14 @@ LOOP AT it_nfs INTO wa_nfs.
       wa_h6-linha = linha.
       append wa_h6 to it_h6.
     ELSE.
-      IF p_branch EQ '0001'
-        AND ( wa_prest-ort01 EQ 'JUNDIAÍ' OR wa_prest-ort01 EQ 'JUNDIAI' ).
+      "IF p_branch EQ '0001' AND ( wa_prest-ort01 EQ 'JUNDIAÍ' OR wa_prest-ort01 EQ 'JUNDIAI' ).
+      IF cd_prest_tom_estab_mun EQ 'S'.
         "Não exporta nfs de Jdi no movimento.
       ELSE.
         wa_h6-linha = linha.
         append wa_h6 to it_h6.
       ENDIF.
     ENDIF.
-    "WRITE: / linha.
 
   ELSE.
 
@@ -704,23 +710,19 @@ LOOP AT it_nfs INTO wa_nfs.
                 ic_origem_dados
            INTO linha.
 
-    "IF wx_ignorar_reg = 1.
-      "ignora a exportação do registro em caso de erro.
-    "ELSE.
-      IF p_expmun EQ 'X'.
-        "Se marcado, exporta tudo.
+    IF p_expmun EQ 'X'.
+      "Se marcado, exporta tudo.
+      wa_t1-linha = linha.
+      append wa_t1 to it_t1.
+    ELSE.
+      "IF p_branch EQ '0001' AND ( wa_prest-ort01 EQ 'JUNDIAÍ' OR wa_prest-ort01 EQ 'JUNDIAI' ).
+      IF cd_prest_tom_estab_mun EQ 'S'.
+        "Não exporta nfs de Jdi no movimento.
+      ELSE.
         wa_t1-linha = linha.
         append wa_t1 to it_t1.
-      ELSE.
-        IF p_branch EQ '0001'
-          AND ( wa_prest-ort01 EQ 'JUNDIAÍ' OR wa_prest-ort01 EQ 'JUNDIAI' ).
-          "Não exporta nfs de Jdi no movimento.
-        ELSE.
-          wa_t1-linha = linha.
-          append wa_t1 to it_t1.
-        ENDIF.
       ENDIF.
-    "ENDIF.
+    ENDIF.
 
   ENDIF.
 
@@ -782,7 +784,7 @@ LOOP AT it_nfs INTO wa_nfs.
       wa_conferencia-tipo_pf_pj = '1 - Física'.
     ENDIF.
 
-    IF wa_srv-flconstr EQ 'X'.
+    IF wa_srv-flconstr EQ 'S'.
       wa_conferencia-modalidade = 'C - Construtora'.
     ELSE.
       wa_conferencia-modalidade = 'T - Tomador'.
@@ -801,15 +803,23 @@ LOOP AT it_nfs INTO wa_nfs.
 
     LOOP AT it_criticas INTO wa_critica.
       "iQtdeCriticas = iQtdeCriticas + 1.
-      CONCATENATE wa_critica-mensagem sy-uline(5) wx_Texto INTO wx_Texto SEPARATED BY separador.
+      CONCATENATE wa_critica-mensagem wx_Texto INTO wx_Texto SEPARATED BY sy-uline(5).
     ENDLOOP.
-    wa_conferencia-criticas = wx_texto.
+    wa_conferencia-criticas = wx_Texto.
 
     "wa_conferencia-criticas = '**Sem críticas'.
 
     "------------------------------------------------------------------------------------
 
-    APPEND wa_conferencia TO it_conferencia.
+    IF p_expmn2 EQ 'X'. "Exporta NFs do Municipio no Relatório
+      APPEND wa_conferencia TO it_conferencia.
+    ELSE.
+      IF cd_prest_tom_estab_mun = 'S'.
+        "Se for do município não exporta.
+      ELSE.
+        APPEND wa_conferencia TO it_conferencia.
+      ENDIF.
+    ENDIF.
 
   ENDIF.
 
@@ -830,7 +840,11 @@ ENDIF.
 
 FORM SPOOL_ARQUIVO_TEXTO.
 
+  data suffix(2) type c.
+
   IF p_fmth6 EQ 'X'.
+
+    suffix = '_C'.
 
     write: header_h6.
     LOOP AT it_H6 into wa_h6.
@@ -839,6 +853,8 @@ FORM SPOOL_ARQUIVO_TEXTO.
 
   ELSE.
 
+    suffix = '_T'.
+
     write: header_t1.
     LOOP AT it_t1 into wa_t1.
       write: / wa_t1-linha.
@@ -846,7 +862,7 @@ FORM SPOOL_ARQUIVO_TEXTO.
 
   ENDIF.
 
-  CONCATENATE p_file '\GISSOnline_BR30_' p_branch '_' dt_arquivo '.dat' INTO nm_arquivo.
+  CONCATENATE p_file '\GISSOnline_' p_branch '_' dt_arquivo suffix '.dat' INTO nm_arquivo.
 
   CALL FUNCTION 'SAVE_LIST'
 *   EXPORTING
