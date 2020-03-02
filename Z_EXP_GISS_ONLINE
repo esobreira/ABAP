@@ -12,6 +12,7 @@
 report z_exp_giss_online line-size 500 no standard page heading.
 
 tables: j_1bnfdoc, j_1bnflin, lfa1, zgiss_codserv.
+type-pools:  kkblo.
 
 data: begin of listout occurs 0,
       line(1024) type c,
@@ -57,11 +58,11 @@ begin of ty_nfs,
   "bukrs         LIKE j_1bnfdoc-bukrs,
   branch        like j_1bnfdoc-branch,
   docnum        like j_1bnfdoc-docnum,
-  "nfenum        LIKE j_1bnfdoc-nfenum,    "Nr NF-e Eletrônica
+  nfenum        like j_1bnfdoc-nfenum,    "Nr NF-e Eletrônica
   nfnum         like j_1bnfdoc-nfnum,     "Nr NF Entrada (digitada)
   series        like j_1bnfdoc-series,
   docdat        like j_1bnfdoc-docdat,
-  "nftype        LIKE j_1bnfdoc-nftype,
+  nftype        like j_1bnfdoc-nftype,
   pstdat        like j_1bnfdoc-pstdat,
   nftot         like j_1bnfdoc-nftot,
   parid         like j_1bnfdoc-parid,
@@ -87,8 +88,9 @@ begin of ty_prest,
 end of ty_prest,
 
 begin of ty_item,
-  itmnum          like j_1bnflin-itmnum,
+  "itmnum          LIKE j_1bnflin-itmnum,
   nbm             like j_1bnflin-nbm,
+  netwrt          like j_1bnflin-netwrt,
 end of ty_item.
 
 data: it_t1 type standard table of ty_arquivo with header line,
@@ -177,7 +179,8 @@ parameters:       p_branch      type j_1bnfdoc-branch obligatory.
 select-options:   p_pstdat      for  j_1bnfdoc-pstdat obligatory,     "Pesquisa por Data de Lançamento.
                   p_docdat      for  j_1bnfdoc-docdat,                "Data do Documento.
                   p_docnum      for  j_1bnfdoc-docnum matchcode object j1ba,                "Número Docto.
-                  p_nfnum       for  j_1bnfdoc-nfnum,                "Número da NF
+                  "p_nfnum       FOR  j_1bnfdoc-nfnum,                "Número da NF
+                  p_nfnum       for  j_1bnfdoc-nfnum,                 "Número da NF ou NFe
                   p_parid       for  j_1bnfdoc-parid,
                   p_nbm         for  j_1bnflin-nbm.
 selection-screen end of block b1.
@@ -233,12 +236,12 @@ endif.
 
 select branch
       docnum
-      "nfenum
+      nfenum
       nfnum
       series
       docdat    "Data do Documento
       pstdat    "Data do Lançamento
-      "nftype
+      nftype
       nftot
       parid
       observat
@@ -249,12 +252,12 @@ select branch
  where bukrs eq 'BR30' and
        branch eq p_branch and   "Local de negócios
        docnum in p_docnum and   "Nr Docto
-       nfnum in p_nfnum and   "Nr NF
+       "nfnum IN p_nfnum AND   "Nr NF
+       ( nfnum in p_nfnum or nfenum in p_nfnum ) and "Nr NF ou NFe
        pstdat in p_pstdat and   "Data de Lançamento
        docdat in p_docdat and   "Data do Documento
        parid in p_parid and     "Parceiro
-       "doctyp EQ 1 AND  "Nota fiscal // não usar isso porque ZY é um doctyp diferente
-       ( doctyp eq 1 or doctyp eq 4 ) and
+       ( doctyp eq 1 or doctyp eq 4 ) and   "doctyp: ZD = 4, ZY = 4, ZS = 1, ZZ = 1 (no DEV o doctype de ZY/ZD é 2)
        direct eq 1 and "Entradas
        ( nftype eq 'ZZ' or
          nftype eq 'ZS' or
@@ -290,6 +293,27 @@ concatenate header_h6 'NR_INSCRICAO_MUNICIPAL||NM_INSCRICAO_MUNICIPAL_DV||NR_INS
 
 loop at it_nfs into wa_nfs.
 
+  "-----------------------------------------------------------------------------
+
+  "Quando a série for nula ou vazia e for numérica, gravar 'A'.
+  if wa_nfs-series is initial or wa_nfs-series eq '' or wa_nfs-series ca '0123456789'.
+    wa_nfs-series = 'A'.
+  endif.
+
+  "02-03-2020 - No caso de ZS/ZD tem que ler o NFENUM, a nf é lançada como eletrônica na J1B1
+  if wa_nfs-nftype eq 'ZS' or wa_nfs-nftype eq 'ZD'.
+    write wa_nfs-nfnum to nr_notfis no-zero.
+  else.
+    write wa_nfs-nfnum to nr_notfis no-zero.
+  endif.
+
+  condense nr_notfis.
+  condense wa_nfs-observat.
+
+  translate wa_nfs-observat to upper case.
+
+  "-----------------------------------------------------------------------------
+
   clear it_criticas[].
   clear wa_critica.
 
@@ -318,33 +342,35 @@ loop at it_nfs into wa_nfs.
      and nbm in p_nbm.
 
   if icount > 0.
-    wa_critica-mensagem = 'NF tem CFOP que não é de Serviço. 1999/XX 2999/XX.'.
+    wa_critica-mensagem = 'CFOP não é de 1999/XX 2999/XX.'.
     append wa_critica to it_criticas.
   endif.
 
   "----- Carrega os itens -----
 
-  select itmnum nbm
+  "SELECT itmnum nbm netwrt
+  select nbm sum( netwrt )
     into corresponding fields of table it_item
     from j_1bnflin
    where docnum eq wa_nfs-docnum
-     and nbm in p_nbm.
+     and nbm in p_nbm
+    group by nbm.
 
   loop at it_item into wa_item.
 
     "-----------------------------------------------------------------------------
 
-    "Quando a série for nula ou vazia e for numérica, gravar 'A'.
-    if wa_nfs-series is initial or wa_nfs-series eq '' or wa_nfs-series ca '0123456789'.
-      wa_nfs-series = 'A'.
+    clear: cd_local_prestacao.
+
+    if wa_nfs-observat cs 'FORA MUNICIPIO'.
+      cd_local_prestacao = 'F'.
     endif.
 
-    write wa_nfs-nfnum to nr_notfis no-zero.
+    if wa_nfs-observat cs 'DENTRO MUNICIPIO'.
+      cd_local_prestacao = 'D'.
+    endif.
 
-    condense nr_notfis.
-    condense wa_nfs-observat.
-
-    translate wa_nfs-observat to upper case.
+    clear: vlr_iss, vlr_aliquota, tp_doc_nf. ", vlr_base_calc.
 
     "-----------------------------------------------------------------------------
 
@@ -365,7 +391,7 @@ loop at it_nfs into wa_nfs.
     endloop.
 
     if iqtdaliqdistintasnf > 1.
-      wa_critica-mensagem = 'Duas ou mais alíquotas no cadastro do Serviço. Verifique o Cadastro.'.
+      wa_critica-mensagem = 'Duas ou mais alíquotas para o Serviço ou Serviço duplicado no Cadastro.'.
       append wa_critica to it_criticas.
     endif.
 
@@ -387,7 +413,7 @@ loop at it_nfs into wa_nfs.
       append wa_critica to it_criticas.
     endif.
 
-    if wa_srv-locpstnf eq 'A'.
+    if ( wa_srv-locpstnf eq 'A' and cd_local_prestacao is initial ).
       wa_critica-mensagem = 'Cadastro do Serviço indica que é necessário informar Local da Prestação D/F Município. Verifique!'.
       append wa_critica to it_criticas.
     endif.
@@ -501,20 +527,6 @@ loop at it_nfs into wa_nfs.
 
       vlr_aliq_simples = wa_nfs-observat+posequal(chars). "Extrai a alíquota do simples.
     endif.
-
-    "-----------------------------------------------------------------------------
-
-    clear: cd_local_prestacao.
-
-    if wa_nfs-observat cs 'FORA MUNICIPIO'.
-      cd_local_prestacao = 'F'.
-    endif.
-
-    if wa_nfs-observat cs 'DENTRO MUNICIPIO'.
-      cd_local_prestacao = 'D'.
-    endif.
-
-    clear: vlr_iss, vlr_aliquota, tp_doc_nf. ", vlr_base_calc.
 
     "-----------------------------------------------------------------------------
 
@@ -1175,6 +1187,8 @@ form relatorio_conferencia.
   call function 'REUSE_ALV_GRID_DISPLAY'
    exporting
      i_callback_program                = sy-repid
+     i_callback_user_command           = 'AT_USER_COMMAND'
+     "i_callback_top_of_page            = 'TOP_OF_PAGE'
      it_fieldcat                       = it_fcat
      is_layout                         = ws_layout
     tables
@@ -1188,3 +1202,18 @@ form relatorio_conferencia.
   endif.
 
 endform.
+
+form at_user_command using ucomm    like sy-ucomm
+                           selfield type kkblo_selfield.
+  case ucomm.
+
+    when '&IC1'.
+
+      if selfield-fieldname eq 'DOC_NUM'.
+        set parameter id 'JEF'  field selfield-value.
+        call transaction 'J1B3N' and skip first screen .
+      endif.
+
+  endcase.
+
+endform.                    "at_user_command
