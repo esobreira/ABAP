@@ -1,0 +1,606 @@
+*&---------------------------------------------------------------------*
+*& Report  ZMM1206
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+report zmm1206.
+
+* Telas para consulta:
+* Tela que mostra as notas fiscais pendentes do EGR assim com seus status e indicadores.
+* Criar tela para confrontar as chaves de acesso que existem na J1B1 e existem no EGR, mas que não tem DOCNUM.
+* Precisa ter uma Query para Notas Fiscais de Entrada que não estejam com Ciência da Operação. Precisa colocar ciência automaticamente nestas notas fiscais.
+* Precisa ter uma tela onde mostra os XMLs que ainda não foram baixados.
+* Precisa ter uma tela onde mostra notas fiscais que não tem Operação Confirmada.
+* Tela onde mostra Notas Fiscais de Venda que ainda não foram lançadas.
+* Tela que mostras as notas fiscais canceladas para dar Operação Não Realizada.
+*
+
+tables: /xegr/txmlk.
+
+*----------------------------------------------------------------------*
+*& Constantes
+*----------------------------------------------------------------------*
+constants: gc_branch type dd03p-fieldname value 'BRANCH',
+           gc_dtemi  type dd03p-fieldname value 'DTEMI'.
+constants: gc_mdstcf type string value '/XEGR/MDSTCF',  "Sit da Manifest do Destinatário
+           gc_sitnfe type string value '/XEGR/MDSTNF',   "Situação da NFe
+           gc_finnfe type string value '/XEGR/EGRMDFINNFE'.   "Finalidade NFe
+
+*----------------------------------------------------------------------*
+*& Tipos
+*----------------------------------------------------------------------*
+types: begin of ty_saida,
+        bukrs       type  /xegr/txmlk-bukrs,        "Empresa
+        branch      type  /xegr/txmlk-branch,       " FILIAL
+        demi        type  /xegr/txmlk-demi,         " DT Emissão
+        dtemi       type  char10,                   " DT Emisão (formato data)
+        partyp      type  /xegr/txmlk-partyp,       " Tp Parc
+        lifnr       type  /xegr/txmlk-lifnr,        " Cod Emitente
+        name1       type  /xegr/txmlk-name1,        " Raz Social
+        model       type  /xegr/txmlk-model,        " MODELO (57)
+        nfenum      type  /xegr/txmlk-nfenum,       " Nº NF/NF-e NFe
+        id          type  /xegr/txmlk-id,           "ID
+        serie       type  /xegr/txmlk-serie,        " Ser
+        finnfe      type  /xegr/txmlk-finnfe,
+        fintxt      type  char40,
+        stataut     type  /xegr/txmlk-stataut,
+        stattxt     type  char40,
+        mdstaut     type  /xegr/txmlk-mdstaut,
+        mdsttxt     type  char40,
+        docnum      type  /xegr/txmlk-docnum,
+        tiponfe     type  /xegr/txmlk-tiponfe,
+        tpnftxt     type  char20,
+        cancel      type  /xegr/txmlk-cancel,
+        email       type  /xegr/wegr9003-email,
+        infadi      type  /xegr/wegr9008v-infcpl,   " Informações Adicionais
+        xped        type  ekko-ebeln,               "Pedido no XML
+        pedobs      type  ekko-ebeln,               "Pedido na Observação
+        grpcomp     type  t024-eknam,               "Grupo de Compradores
+        cfop        type  /xegr/wegr9004-cfop,
+        nitemped    type  i,
+        nitem       type  i,
+        natop       type  /xegr/wegr9001-natop,
+        status      type  char10,
+       end of ty_saida.
+
+*----------------------------------------------------------------------*
+*& Tabelas Internas e Ranges
+*----------------------------------------------------------------------*
+data: tb_saida  type table of ty_saida.                     "#EC NEEDED
+data: tb_nfs type standard table of ty_saida with header line.
+
+*----------------------------------------------------------------------*
+*& Work Areas
+*----------------------------------------------------------------------*
+data: wa_saida  type ty_saida.                              "#EC NEEDED
+
+*----------------------------------------------------------------------*
+*& Objetos e Varáveis para ALV
+*----------------------------------------------------------------------*
+data: gc_grid_r       type ref to cl_gui_alv_grid.          "#EC NEEDED
+
+data: tb_sort         type lvc_t_sort,                      "#EC NEEDED
+      tb_top_of_page  type slis_t_listheader,               "#EC NEEDED
+      tb_fieldcat     type lvc_t_fcat.                      "#EC NEEDED
+
+*----------------------------------------------------------------------*
+*& Estruturas XML NFE
+*----------------------------------------------------------------------*
+data: ls_w_wnfeitem   like /xegr/wegr9004.                  "#EC NEEDED
+data: ls_w_winfo      type /xegr/wegr9008v.                 "#EC NEEDED
+
+data: gw_wnfetab_orig type /xegr/wnfetab,                   "#EC NEEDED
+      go_nfexml       type ref to /xegr/clegrnfexml.        "#EC NEEDED
+
+*----------------------------------------------------------------------*
+*& Selection Screen
+*----------------------------------------------------------------------*
+selection-screen begin of block b1 with frame title text-100.
+select-options:  p_bukrs    for /xegr/txmlk-bukrs default 'BR30',
+                 p_id       for /xegr/txmlk-id,
+                 p_model    for /xegr/txmlk-model,
+                 p_nfenum   for /xegr/txmlk-nfenum,
+                 p_demi     for /xegr/txmlk-demi obligatory,
+                 p_docnum   for /xegr/txmlk-docnum,
+                 "p_stcd1    FOR /xegr/txmlk-stcd1,
+                 p_lifnr    for /xegr/txmlk-lifnr,
+                 p_partyp   for /xegr/txmlk-partyp.
+selection-screen end of block b1.
+
+selection-screen begin of block b2 with frame title text-101.
+select-options:  p_fin      for /xegr/txmlk-finnfe,
+                 p_mdsaut   for /xegr/txmlk-mdstaut,
+                 p_stat     for /xegr/txmlk-stataut,
+                 p_tpnfe    for /xegr/txmlk-tiponfe,
+                 p_cancel   for /xegr/txmlk-cancel
+                 .
+selection-screen end of block b2.
+*----------------------------------------------------
+initialization.
+  perform: inicializa,
+           monta_fc.
+*----------------------------------------------------
+start-of-selection.
+  perform: seleciona_dados_nfe,
+           buscar_dados_xml_nfe.
+*----------------------------------------------------
+end-of-selection.
+  perform:  cab_titulo,
+            show_alv.
+*&---------------------------------------------------------------------*
+*&      Form  INICIALIZA
+*&---------------------------------------------------------------------*
+form inicializa .
+
+  refresh: tb_saida. ", i_id.
+  clear:   wa_saida.
+
+endform.                    " INICIALIZA
+*&---------------------------------------------------------------------*
+*&      Form  MONTA_FC
+*&---------------------------------------------------------------------*
+form monta_fc.
+
+  data lv_sort type  lvc_s_sort.
+
+  refresh: tb_sort.
+
+  lv_sort-fieldname = gc_branch.
+  lv_sort-spos ='1'.
+  append lv_sort to tb_sort.
+  clear lv_sort.
+
+  lv_sort-fieldname = gc_dtemi.
+  lv_sort-spos ='2'.
+  append lv_sort to tb_sort.
+  clear lv_sort.
+
+  refresh tb_fieldcat.
+
+  perform fieldcat using:
+     "'BUKRS'        text-040 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'ID    '       text-001 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'BRANCH'       text-002 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'MODEL'        text-003 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'NFENUM'       text-004 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'DTEMI'        text-005 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'PARTYP'       text-006 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Tipo Parceiro
+     'LIFNR'        text-007 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'NAME1'        text-008 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     "'UF'           text-009 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'EMAIL'        text-009 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ',
+     'NATOP'        text-024 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Natureza da Operação
+     'STATUS'       text-025 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Status (vazia)
+     'DOCNUM'       text-015 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "DocNum
+     'FINNFE'       text-010 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Finalidade
+     'FINTXT'       text-018 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Descrição Finalidade
+     'STATAUT'      text-011 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Situação NFe
+     'STATTXT'      text-016 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Situação NFe Descrição
+     'MDSTAUT'      text-012 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "ID Situação da Manifestação
+     'MDSTTXT'      text-019 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Situação da Manifestação
+     'TIPONFE'      text-013 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Tipo da Operação
+     'TPNFTXT'      text-021 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Tipo da Operação Descrição
+     'CANCEL'       text-014 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Cancel XML
+     'PEDOBS'       text-020 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Pedido lido na Observação
+     'XPED'         text-022 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Pedido no XML
+     'GRPCOMP'      text-023 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' ', "Grupo de Compradores
+     'INFADI'       text-017 'TB_SAIDA'  ' '   ' '   ' '   ' '    ' ' ' '  ' ' ' ' ' '.
+
+endform.                    " MONTA_FC
+*&---------------------------------------------------------------------*
+*&      Form  FIELDCAT
+*&---------------------------------------------------------------------*
+form fieldcat  using        value(pi_fieldname)  type dd03p-fieldname
+                            value(pi_text)       type dd03p-reptext
+                            value(pi_tabname)    type dd03p-tabname
+                            value(pi_just)       type char1
+                            value(pi_no_out)     type char1
+                            value(pi_hotspot)    type char1
+                            value(pi_len)        type char2
+                            value(pi_fix_column) type char1
+                            value(pi_do_sum)     type char1
+                            value(pi_icon)       type lvc_icon
+                            value(pi_qfieldname) type lvc_qfname
+                            value(pi_currency)   type lvc_curr.
+
+  data lf_fieldcat type lvc_s_fcat.
+
+  lf_fieldcat-icon          = pi_icon.
+  lf_fieldcat-ref_field     = pi_fieldname.
+  lf_fieldcat-fieldname     = pi_fieldname.
+  if not pi_text is initial.
+    move pi_text to lf_fieldcat-reptext.
+  endif.
+  lf_fieldcat-ref_table      = pi_tabname.
+  lf_fieldcat-do_sum         = pi_do_sum.
+  lf_fieldcat-just           = pi_just.
+  lf_fieldcat-no_out         = pi_no_out.
+  lf_fieldcat-hotspot        = pi_hotspot.
+  lf_fieldcat-fix_column     = pi_fix_column.
+  if not pi_len is initial.
+    lf_fieldcat-outputlen     = pi_len.
+  endif.
+  lf_fieldcat-qfieldname   = pi_qfieldname.
+  lf_fieldcat-currency     = pi_currency.
+
+  append lf_fieldcat to tb_fieldcat.
+  clear lf_fieldcat.
+
+endform.                    " FIELDCAT
+
+*&---------------------------------------------------------------------*
+*&      Form  CAB_TITULO
+*&---------------------------------------------------------------------*
+form cab_titulo .
+
+  data: lf_line type slis_listheader.
+
+  data: lv_data(10),
+        lv_hora(08).
+
+  free tb_top_of_page.
+
+  clear lf_line.
+  lf_line-typ  = 'H'.
+  move  sy-title to  lf_line-info.
+  append lf_line to tb_top_of_page.
+
+* Data e Hora:
+  clear lf_line.
+  lf_line-typ  = 'S'.
+  lf_line-key  = text-002.
+  write: sy-datum to lv_data,
+         sy-uzeit to lv_hora.
+  concatenate lv_data lv_hora into lf_line-info separated by ' - '.
+  append lf_line to tb_top_of_page.
+
+endform.                    " CAB_TITULO
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_ALV
+*&---------------------------------------------------------------------*
+form show_alv .
+
+  data lv_alvlayout type lvc_s_layo.
+
+  lv_alvlayout-sel_mode   = 'A'.
+  lv_alvlayout-cwidth_opt = 'X'.
+
+  call function 'REUSE_ALV_GRID_DISPLAY_LVC'
+    exporting
+      i_callback_program       = sy-repid
+      i_save                   = 'A'
+      i_bypassing_buffer       = 'X'
+      "i_callback_pf_status_set = slis_ev_pf_status_set
+      "i_callback_user_command  = slis_ev_user_command
+      "i_callback_top_of_page   = slis_ev_top_of_page
+      is_layout_lvc            = lv_alvlayout
+      it_sort_lvc              = tb_sort
+      it_fieldcat_lvc          = tb_fieldcat
+    tables
+      t_outtab                 = tb_saida.
+
+endform.                    " SHOW_ALV
+*-----------------------------------------------------------------------
+*       Form  TOP_OF_PAGE
+*-----------------------------------------------------------------------
+form top_of_page.                                           "#EC CALLED
+
+* To Write in Top of the Page
+  call function 'REUSE_ALV_COMMENTARY_WRITE'
+    exporting
+      it_list_commentary = tb_top_of_page.
+
+endform.                   "F_TOP_OF_PAGE
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+form user_command using pv_ucomm    type sy-ucomm
+                        pf_selfield type slis_selfield.     "#EC CALLED
+*
+  if gc_grid_r is initial.
+    call function 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      importing
+        e_grid = gc_grid_r.
+
+  endif.
+
+  case pv_ucomm.
+
+    when zty_refresh or zty_enter.
+      perform: seleciona_dados_nfe,
+               buscar_dados_xml_nfe,
+               cab_titulo.
+      pf_selfield-refresh = 'X'.
+
+    when zty_bck.
+      leave to screen 0.
+  endcase.
+
+endform.                    " F_USER_COMMAND
+*&       Form  pf_status
+*&---------------------------------------------------------------------*
+*   Setting the Status
+*----------------------------------------------------------------------*
+form pf_status_set                                          "#EC CALLED
+  using pf_tab type slis_t_extab.                           "#EC NEEDED
+
+  set pf-status zty_standard.
+
+endform.         " zf_status
+*&---------------------------------------------------------------------*
+*&      Form  SELECIONA_DADOS_NFE
+*&---------------------------------------------------------------------*
+form seleciona_dados_nfe .
+
+  select * into corresponding fields of table tb_nfs
+    from /xegr/txmlk
+    where bukrs     in p_bukrs  and
+          id        in p_id     and
+          nfenum    in p_nfenum and
+          model     in p_model  and
+          demi      in p_demi   and
+          lifnr     in p_lifnr  and
+          partyp    in p_partyp and
+          finnfe    in p_fin    and
+          mdstaut   in p_mdsaut and
+          stataut   in p_stat   and
+          tiponfe   in p_tpnfe  and
+          docnum    in p_docnum and
+          cancel    in p_cancel
+    .
+      "AND docnum EQ '0000000000'.
+
+*  DATA lt_/xegr/tgrstat_mt TYPE TABLE OF /xegr/tgrstat_mt.
+*  DATA lv_id TYPE /xegr/txmlk.
+*
+*  SELECT * INTO CORRESPONDING FIELDS OF TABLE i_id
+*    FROM /xegr/txmlk
+*    WHERE id        IN p_id.
+          "nfenum    IN p_nfenum  AND
+        "( stcd1     IN p_stcd1   AND stcd1 NE '75801902*' ) AND
+          "demi      IN p_demi    AND
+          "lifnr     IN p_lifnr   AND
+          "partyp    IN p_partyp  AND
+          "model     EQ p_model  AND
+          "docnum    EQ ' '       AND
+          "extegr    EQ ' '.   "    AND
+*        ( stataut   EQ '1' or stataut   EQ ' ').
+
+*  IF i_id[] IS NOT INITIAL.
+** le notas devolvidas para serem eliminadas
+*    SELECT * FROM /xegr/tgrstat_mt
+*      INTO TABLE lt_/xegr/tgrstat_mt
+*      FOR ALL ENTRIES IN i_id
+*      WHERE id EQ i_id-id
+*      AND monit_status IN ('0009', '0013').
+*
+*    IF lt_/xegr/tgrstat_mt IS NOT INITIAL.
+*      LOOP AT i_id INTO lv_id.
+*        READ TABLE lt_/xegr/tgrstat_mt TRANSPORTING NO FIELDS with key iD = lv_id.
+*        IF sy-subrc EQ 0.
+*          DELETE i_id.
+*        ENDIF.
+*      ENDLOOP.
+*    ENDIF.
+*  ENDIF.
+
+*  IF i_id[] IS INITIAL.
+*    "Dados não encontrados !
+*    MESSAGE s088 WITH text-028 DISPLAY LIKE 'E'.
+*    LEAVE LIST-PROCESSING.
+*  ENDIF.
+
+endform.                    " SELECIONA_DADOS_NFE
+*&---------------------------------------------------------------------*
+*&      Form  BUSCAR_DADOS_XML_NFE
+*&---------------------------------------------------------------------*
+form buscar_dados_xml_nfe .
+
+  data: lv_ekgrp    type ekko-ekgrp,
+        lv_eknam    type t024-eknam,
+        lv_xblnr    type vbak-xblnr,
+        lv_erdat    type sy-datum,
+        lv_ebeln    type ekko-ebeln.
+
+  data: lt_tegr9004 type standard table of /xegr/tegr9004,
+        lw_tegr9004 type                   /xegr/tegr9004.
+
+  data: lt_tekpo    type standard table of ekpo,
+        lw_tekpo    type                   ekpo.
+
+  clear: wa_saida.
+
+  "LOOP AT i_id WHERE stataut <> '2' AND stataut <> '3'.
+
+  loop at tb_nfs into wa_saida.
+
+*-->(Load XML Data)
+    create object go_nfexml.
+    clear: gw_wnfetab_orig.
+    gw_wnfetab_orig = go_nfexml->get_xmltab( i_id = wa_saida-id ).
+
+    if not gw_wnfetab_orig is initial.
+      "wa_saida-bukrs   = gw_wnfetab_orig-wegrxmlk-bukrs.
+      wa_saida-branch  = gw_wnfetab_orig-wegrxmlk-branch.
+      wa_saida-demi    = gw_wnfetab_orig-wegrxmlk-demi.
+      "wa_saida-id      = i_id-id.
+      wa_saida-partyp  = gw_wnfetab_orig-wegrxmlk-partyp.
+      wa_saida-lifnr   = gw_wnfetab_orig-wegrxmlk-lifnr.
+      wa_saida-name1   = gw_wnfetab_orig-wegrxmlk-name1.
+      "wa_saida-model   = gw_wnfetab_orig-wegrxmlk-model.
+      wa_saida-docnum  = gw_wnfetab_orig-wegrxmlk-docnum.
+      wa_saida-finnfe  = gw_wnfetab_orig-wegrxmlk-finnfe.
+      wa_saida-nfenum  = gw_wnfetab_orig-wegrxmlk-nfenum.
+      wa_saida-serie   = gw_wnfetab_orig-wegrxmlk-serie.
+      wa_saida-stataut = gw_wnfetab_orig-wegrxmlk-stataut.
+      wa_saida-mdstaut = gw_wnfetab_orig-wegrxmlk-mdstaut.
+      wa_saida-tiponfe = gw_wnfetab_orig-wegrxmlk-tiponfe.
+      wa_saida-cancel = gw_wnfetab_orig-wegrxmlk-cancel.
+      wa_saida-natop = gw_wnfetab_orig-wegr9001-natop.
+
+      wa_saida-email   = gw_wnfetab_orig-wegr9003-email.
+
+      concatenate gw_wnfetab_orig-wegrxmlk-demi+6(02) '/'
+                  gw_wnfetab_orig-wegrxmlk-demi+4(02) '/'
+                  gw_wnfetab_orig-wegrxmlk-demi+0(04) into wa_saida-dtemi.
+
+    endif.
+
+* busca valores do dominio
+    cl_reca_ddic_doma=>get_text_by_value( exporting  id_name   = gc_mdstcf
+                                                   id_value    = wa_saida-mdstaut
+                                                importing
+                                                   ed_text = wa_saida-mdsttxt
+                                                exceptions not_found = 1
+                                                   others    = 2 ).
+
+    cl_reca_ddic_doma=>get_text_by_value( exporting  id_name   = gc_sitnfe
+                                                   id_value    = wa_saida-stataut
+                                                importing
+                                                   ed_text = wa_saida-stattxt
+                                                exceptions not_found = 1
+                                                   others    = 2 ).
+
+    cl_reca_ddic_doma=>get_text_by_value( exporting  id_name   = gc_finnfe
+                                                   id_value    = wa_saida-finnfe
+                                                importing
+                                                   ed_text = wa_saida-fintxt
+                                                exceptions not_found = 1
+                                                   others    = 2 ).
+
+    if wa_saida-tiponfe is initial.
+      wa_saida-tpnftxt = 'N/D'.
+    elseif wa_saida-tiponfe eq 0.
+      wa_saida-tpnftxt = 'Entrada'.
+    elseif wa_saida-tiponfe eq 1.
+      wa_saida-tpnftxt = 'Saída'.
+    endif.
+
+    "W_WINFO (Informações Adicionais)
+    clear ls_w_winfo.
+    loop at gw_wnfetab_orig-w_winfo into ls_w_winfo.
+
+      if not ls_w_winfo-infcpl is initial.
+
+        if not wa_saida-infadi is initial.
+          concatenate wa_saida-infadi '/' ls_w_winfo-infcpl into wa_saida-infadi.
+        else.
+          wa_saida-infadi = ls_w_winfo-infcpl.
+        endif.
+
+      endif.
+
+    endloop.
+
+    "Verificar se na string dos dados adicionais tem '4500' e pegar o nr do pedido de lá.
+    "4500369258
+    data: wx_ped(10) type c,
+          wx_pos type i.
+
+    search wa_saida-infadi for '4500'.
+
+    if sy-subrc eq 0.
+      wx_pos = sy-fdpos.
+      wa_saida-pedobs = wa_saida-infadi+wx_pos(10).
+    endif.
+
+    "Pedido Compra
+
+    refresh: lt_tegr9004.
+    select * from /xegr/tegr9004
+      into corresponding fields of table lt_tegr9004
+      where id eq wa_saida-id.
+
+    if sy-subrc is initial.
+      sort lt_tegr9004 by ebeln ebelp.
+      delete adjacent duplicates from lt_tegr9004 comparing ebeln ebelp.
+    endif.
+
+    if not lt_tegr9004 is initial.
+
+      refresh: lt_tekpo.
+      select * from ekpo into table lt_tekpo
+        for all entries in lt_tegr9004
+        where ebeln eq lt_tegr9004-ebeln
+          and ebelp eq lt_tegr9004-ebelp.
+      if sy-subrc is initial.
+        sort lt_tekpo by ebeln ebelp.
+      endif.
+
+    endif.
+
+    loop at gw_wnfetab_orig-w_wnfeitem into ls_w_wnfeitem.
+
+      pack ls_w_wnfeitem-nitem to wa_saida-nitem.
+
+      "wa_saida-cprod     = ls_w_wnfeitem-cprod.
+      "wa_saida-xprod     = ls_w_wnfeitem-xprod.
+      wa_saida-cfop      = ls_w_wnfeitem-cfop.
+      "wa_saida-ncm       = ls_w_wnfeitem-ncm.
+      "wa_saida-qcom      = ls_w_wnfeitem-qcom.
+      "wa_saida-ucom      = ls_w_wnfeitem-ucom.
+      "wa_saida-vprod     = ls_w_wnfeitem-vprod.
+      wa_saida-xped      = ls_w_wnfeitem-xped.
+      wa_saida-nitemped  = ls_w_wnfeitem-nitemped.
+      "wa_saida-vnf       = gw_wnfetab_orig-wegr9005-vnf.
+
+      if wa_saida-xped     is initial and
+         wa_saida-nitemped is initial.
+
+        clear lw_tegr9004.
+        read table lt_tegr9004 into lw_tegr9004
+                               with key nitem = ls_w_wnfeitem-nitem.
+        if sy-subrc is initial.
+          clear: lw_tekpo.
+          read table lt_tekpo into lw_tekpo
+                              with key ebeln = lw_tegr9004-ebeln
+                                       ebelp = lw_tegr9004-ebelp
+                              binary search.
+          if sy-subrc is initial.
+            wa_saida-xped      = lw_tekpo-ebeln.
+            wa_saida-nitemped  = lw_tekpo-ebelp.
+          endif.
+        endif.
+
+      endif.
+
+      "LS_W_WNFEITEM-XPED (pedido de compra) - buscar o Grp Compradores
+      clear: lv_ebeln, lv_ekgrp.
+
+      if not wa_saida-xped is initial.
+
+        lv_ebeln = wa_saida-xped.
+
+        select single ekgrp
+          from ekko
+          into lv_ekgrp
+          where ebeln eq lv_ebeln.
+
+        if not lv_ekgrp is initial.
+
+          clear lv_eknam.
+          select single eknam
+            from t024
+            into lv_eknam
+            where ekgrp eq lv_ekgrp.
+
+          if sy-subrc is initial.
+            "Grp Compradores
+            concatenate lv_ekgrp '-' lv_eknam into wa_saida-grpcomp.
+          endif.
+
+        endif.
+      endif.
+
+    endloop.
+
+    append wa_saida to tb_saida.
+
+    clear: wa_saida.
+
+  endloop.
+
+endform.                    " BUSCAR_DADOS_XML_NFE
